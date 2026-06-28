@@ -1,0 +1,14 @@
+{
+  "features": {
+    "ghcr.io/devcontainers-extra/features/expo-cli:1": {
+      "version": "1.0.11",
+      "resolved": "ghcr.io/devcontainers-extra/features/expo-cli@sha256:5e6d4eb40d8bab44fcf0c361fb6dddbe682b114a639bbc67e3611a828534eca8",
+      "integrity": "sha256:5e6d4eb40d8bab44fcf0c361fb6dddbe682b114a639bbc67e3611a828534eca8"
+    },
+    "ghcr.io/devcontainers-extra/features/typescript:2": {
+      "version": "2.0.16",
+      "resolved": "ghcr.io/devcontainers-extra/features/typescript@sha256:a6bb60b4e02edb858f22e18b691ac7223dd7dfb52708e84d887488e326bd48f5",
+      "integrity": "sha256:a6bb60b4e02edb858f22e18b691ac7223dd7dfb52708e84d887488e326bd48f5"
+    }
+  }
+}
