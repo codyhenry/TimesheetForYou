@@ -3,6 +3,20 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Node / Expo
+node_modules/
+mobile/node_modules/
+.expo/
+mobile/.expo/
+dist/
+mobile/dist/
+
+# Test databases
+test_db.sqlite3
+
+# Media files (user uploads)
+timesheet_project/media/
+
 # C extensions
 *.so
 
