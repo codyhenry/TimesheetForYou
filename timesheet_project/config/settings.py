@@ -13,7 +13,8 @@ if not SECRET_KEY:
         SECRET_KEY = "django-insecure-timesheetforyou-dev-key"
     else:
         raise ValueError("SECRET_KEY must be set when DEBUG is False.")
-ALLOWED_HOSTS = [host.strip() for host in config("ALLOWED_HOSTS", default="*").split(",") if host.strip()]
+ALLOWED_HOSTS = [host.strip() for host in str(
+    config("ALLOWED_HOSTS", default="*")).split(",") if host.strip()]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -69,7 +70,8 @@ if "test" in sys.argv:
         }
     }
 else:
-    database_name = config("POSTGRES_DB", default=config("DB_NAME", default=""))
+    database_name = config(
+        "POSTGRES_DB", default=config("DB_NAME", default=""))
     if database_name:
         DATABASES = {
             "default": {

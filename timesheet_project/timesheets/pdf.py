@@ -26,19 +26,24 @@ def _signature_cell(entry, styles):
 
 def render_timesheet_pdf(timesheet):
     buffer = BytesIO()
-    document = SimpleDocTemplate(buffer, pagesize=LETTER, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=24)
+    document = SimpleDocTemplate(
+        buffer, pagesize=LETTER, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=24)
     styles = getSampleStyleSheet()
     entries = list(timesheet.entries.select_related("parent_signature").all())
 
-    total_hours = sum((entry.total_hours for entry in entries), Decimal("0.00"))
-    signed_count = sum(1 for entry in entries if entry.signature_status == TimeEntry.SignatureStatus.SIGNED)
+    total_hours = sum(
+        (entry.total_hours for entry in entries), Decimal("0.00"))
+    signed_count = sum(
+        1 for entry in entries if entry.signature_status == TimeEntry.SignatureStatus.SIGNED)
     unsigned_count = len(entries) - signed_count
 
     story = [
         Paragraph("TimesheetForYou", styles["Title"]),
         Spacer(1, 0.15 * inch),
-        Paragraph(f"Nanny: {timesheet.nanny.get_full_name() or timesheet.nanny.username}", styles["Normal"]),
-        Paragraph(f"Week: {timesheet.week_start_date} to {timesheet.week_end_date}", styles["Normal"]),
+        Paragraph(
+            f"Nanny: {timesheet.nanny.get_full_name() or timesheet.nanny.username}", styles["Normal"]),
+        Paragraph(
+            f"Week: {timesheet.week_start_date} to {timesheet.week_end_date}", styles["Normal"]),
         Paragraph(
             f"Submitted: {timesheet.submitted_at.isoformat(sep=' ', timespec='seconds') if timesheet.submitted_at else 'Not submitted'}",
             styles["Normal"],
@@ -46,7 +51,8 @@ def render_timesheet_pdf(timesheet):
         Spacer(1, 0.2 * inch),
     ]
 
-    table_data = [["Date", "Family", "Start", "End", "Hours", "Parent Signature"]]
+    table_data: list[list[object]] = [
+        ["Date", "Family", "Start", "End", "Hours", "Parent Signature"]]
     if entries:
         for entry in entries:
             table_data.append([
@@ -58,9 +64,11 @@ def render_timesheet_pdf(timesheet):
                 _signature_cell(entry, styles),
             ])
     else:
-        table_data.append(["-", "No entries", "-", "-", "0.00", Paragraph('<font color="red">UNSIGNED</font>', styles["BodyText"])])
+        table_data.append(["-", "No entries", "-", "-", "0.00",
+                          Paragraph('<font color="red">UNSIGNED</font>', styles["BodyText"])])
 
-    table = Table(table_data, colWidths=[0.9 * inch, 1.8 * inch, 0.8 * inch, 0.8 * inch, 0.7 * inch, 2.1 * inch])
+    table = Table(table_data, colWidths=[
+                  0.9 * inch, 1.8 * inch, 0.8 * inch, 0.8 * inch, 0.7 * inch, 2.1 * inch])
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),

@@ -3,6 +3,7 @@ import io
 import shutil
 from datetime import time, timedelta
 from pathlib import Path
+from typing import Any
 
 from PIL import Image
 from django.conf import settings
@@ -21,6 +22,8 @@ TEST_MEDIA_ROOT = Path(settings.BASE_DIR) / "test_media"
 
 @override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
 class TimesheetAPITests(APITestCase):
+    client: Any
+
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
@@ -82,7 +85,8 @@ class TimesheetAPITests(APITestCase):
                     "work_date": entry.work_date.isoformat(),
                 },
             )
-            signature.image.save("seed_signature.png", self._signature_content_file(), save=True)
+            signature.image.save("seed_signature.png",
+                                 self._signature_content_file(), save=True)
             entry.signature_status = TimeEntry.SignatureStatus.SIGNED
             entry.save(update_fields=["signature_status", "updated_at"])
         return entry
@@ -103,13 +107,15 @@ class TimesheetAPITests(APITestCase):
 
         self.assertEqual(first_response.status_code, status.HTTP_200_OK)
         self.assertEqual(second_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(WeeklyTimesheet.objects.filter(nanny=self.nanny).count(), 1)
+        self.assertEqual(WeeklyTimesheet.objects.filter(
+            nanny=self.nanny).count(), 1)
 
     def test_nanny_cannot_access_another_nannys_timesheet(self):
         self.authenticate(self.nanny)
         other_timesheet = self.create_timesheet(user=self.other_nanny)
 
-        response = self.client.get(reverse("timesheet-detail", args=[other_timesheet.id]))
+        response = self.client.get(
+            reverse("timesheet-detail", args=[other_timesheet.pk]))
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -123,14 +129,14 @@ class TimesheetAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["id"], timesheet.id)
+        self.assertEqual(response.data[0]["id"], timesheet.pk)
 
     def test_time_entry_total_hours_are_calculated_correctly(self):
         self.authenticate(self.nanny)
         timesheet = self.create_timesheet()
 
         response = self.client.post(
-            reverse("entry-list-create", args=[timesheet.id]),
+            reverse("entry-list-create", args=[timesheet.pk]),
             {
                 "work_date": str(self.week_start),
                 "family_name": "Smith",
@@ -148,7 +154,7 @@ class TimesheetAPITests(APITestCase):
         timesheet = self.create_timesheet()
 
         response = self.client.post(
-            reverse("entry-list-create", args=[timesheet.id]),
+            reverse("entry-list-create", args=[timesheet.pk]),
             {
                 "work_date": str(self.week_start),
                 "family_name": "Smith",
@@ -166,7 +172,7 @@ class TimesheetAPITests(APITestCase):
         timesheet = self.create_timesheet()
 
         response = self.client.post(
-            reverse("entry-list-create", args=[timesheet.id]),
+            reverse("entry-list-create", args=[timesheet.pk]),
             {
                 "work_date": str(self.week_end + timedelta(days=1)),
                 "family_name": "Smith",
@@ -185,7 +191,7 @@ class TimesheetAPITests(APITestCase):
         entry = self.create_entry(timesheet, signed=True)
 
         response = self.client.patch(
-            reverse("entry-detail", args=[entry.id]),
+            reverse("entry-detail", args=[entry.pk]),
             {"family_name": "Johnson"},
             format="json",
         )
@@ -198,14 +204,15 @@ class TimesheetAPITests(APITestCase):
         entry = self.create_entry(timesheet, signed=True)
 
         response = self.client.patch(
-            reverse("entry-detail", args=[entry.id]),
+            reverse("entry-detail", args=[entry.pk]),
             {"family_name": "Johnson", "confirm_invalidate_signature": True},
             format="json",
         )
         entry.refresh_from_db()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(entry.signature_status, TimeEntry.SignatureStatus.SIGNATURE_INVALIDATED)
+        self.assertEqual(entry.signature_status,
+                         TimeEntry.SignatureStatus.SIGNATURE_INVALIDATED)
 
     def test_parent_signature_creates_approved_snapshot(self):
         self.authenticate(self.nanny)
@@ -213,7 +220,7 @@ class TimesheetAPITests(APITestCase):
         entry = self.create_entry(timesheet)
 
         response = self.client.post(
-            reverse("entry-signature", args=[entry.id]),
+            reverse("entry-signature", args=[entry.pk]),
             {"image": self.make_signature_base64()},
             format="json",
         )
@@ -221,17 +228,19 @@ class TimesheetAPITests(APITestCase):
         signature = ParentSignature.objects.get(entry=entry)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(entry.signature_status, TimeEntry.SignatureStatus.SIGNED)
-        self.assertEqual(signature.approved_snapshot["family_name"], entry.family_name)
+        self.assertEqual(entry.signature_status,
+                         TimeEntry.SignatureStatus.SIGNED)
+        self.assertEqual(
+            signature.approved_snapshot["family_name"], entry.family_name)
 
     def test_signature_cannot_be_added_after_submission(self):
         self.authenticate(self.nanny)
         timesheet = self.create_timesheet()
         entry = self.create_entry(timesheet)
-        self.client.post(reverse("timesheet-submit", args=[timesheet.id]))
+        self.client.post(reverse("timesheet-submit", args=[timesheet.pk]))
 
         response = self.client.post(
-            reverse("entry-signature", args=[entry.id]),
+            reverse("entry-signature", args=[entry.pk]),
             {"image": self.make_signature_base64()},
             format="json",
         )
@@ -243,10 +252,12 @@ class TimesheetAPITests(APITestCase):
         timesheet = self.create_timesheet()
         self.create_entry(timesheet)
 
-        response = self.client.post(reverse("timesheet-submit", args=[timesheet.id]))
+        response = self.client.post(
+            reverse("timesheet-submit", args=[timesheet.pk]))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["status"], WeeklyTimesheet.Status.SUBMITTED_WITH_UNSIGNED_ENTRIES)
+        self.assertEqual(
+            response.data["status"], WeeklyTimesheet.Status.SUBMITTED_WITH_UNSIGNED_ENTRIES)
 
     def test_submission_status_is_submitted_with_unsigned_entries_when_unsigned_entries_exist(self):
         self.authenticate(self.nanny)
@@ -254,11 +265,13 @@ class TimesheetAPITests(APITestCase):
         self.create_entry(timesheet, signed=True)
         self.create_entry(timesheet, family_name="Jones")
 
-        response = self.client.post(reverse("timesheet-submit", args=[timesheet.id]))
+        response = self.client.post(
+            reverse("timesheet-submit", args=[timesheet.pk]))
         timesheet.refresh_from_db()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(timesheet.status, WeeklyTimesheet.Status.SUBMITTED_WITH_UNSIGNED_ENTRIES)
+        self.assertEqual(
+            timesheet.status, WeeklyTimesheet.Status.SUBMITTED_WITH_UNSIGNED_ENTRIES)
 
     def test_submission_status_is_submitted_fully_signed_when_all_entries_are_signed(self):
         self.authenticate(self.nanny)
@@ -266,22 +279,27 @@ class TimesheetAPITests(APITestCase):
         self.create_entry(timesheet, signed=True)
         self.create_entry(timesheet, signed=True, family_name="Jones")
 
-        response = self.client.post(reverse("timesheet-submit", args=[timesheet.id]))
+        response = self.client.post(
+            reverse("timesheet-submit", args=[timesheet.pk]))
         timesheet.refresh_from_db()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(timesheet.status, WeeklyTimesheet.Status.SUBMITTED_FULLY_SIGNED)
+        self.assertEqual(timesheet.status,
+                         WeeklyTimesheet.Status.SUBMITTED_FULLY_SIGNED)
 
     def test_pdf_is_generated_on_submission(self):
         self.authenticate(self.nanny)
         timesheet = self.create_timesheet()
         self.create_entry(timesheet)
 
-        response = self.client.post(reverse("timesheet-submit", args=[timesheet.id]))
+        response = self.client.post(
+            reverse("timesheet-submit", args=[timesheet.pk]))
         timesheet.refresh_from_db()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(timesheet.pdf_file.name)
+        self.assertIsNotNone(timesheet.submission)
+        assert timesheet.submission is not None
         self.assertTrue(timesheet.submission.pdf_file.name)
         with timesheet.pdf_file.open("rb") as pdf_file:
             self.assertTrue(pdf_file.read().startswith(b"%PDF"))
@@ -290,11 +308,12 @@ class TimesheetAPITests(APITestCase):
         self.authenticate(self.nanny)
         timesheet = self.create_timesheet()
         entry = self.create_entry(timesheet)
-        self.client.post(reverse("timesheet-submit", args=[timesheet.id]))
+        self.client.post(reverse("timesheet-submit", args=[timesheet.pk]))
 
-        patch_response = self.client.patch(reverse("entry-detail", args=[entry.id]), {"family_name": "Edited"}, format="json")
+        patch_response = self.client.patch(reverse(
+            "entry-detail", args=[entry.pk]), {"family_name": "Edited"}, format="json")
         create_response = self.client.post(
-            reverse("entry-list-create", args=[timesheet.id]),
+            reverse("entry-list-create", args=[timesheet.pk]),
             {
                 "work_date": str(self.week_start),
                 "family_name": "Late Family",
@@ -304,8 +323,10 @@ class TimesheetAPITests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(patch_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(create_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(patch_response.status_code,
+                         status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(create_response.status_code,
+                         status.HTTP_400_BAD_REQUEST)
 
     def test_admin_can_update_admin_notes_after_submission(self):
         timesheet = self.create_timesheet()
@@ -314,7 +335,7 @@ class TimesheetAPITests(APITestCase):
         self.authenticate(self.admin)
 
         response = self.client.patch(
-            reverse("admin-timesheet-notes", args=[timesheet.id]),
+            reverse("admin-timesheet-notes", args=[timesheet.pk]),
             {"admin_notes": "Reviewed and approved."},
             format="json",
         )
@@ -330,7 +351,7 @@ class TimesheetAPITests(APITestCase):
         self.authenticate(self.nanny)
 
         response = self.client.patch(
-            reverse("admin-timesheet-notes", args=[timesheet.id]),
+            reverse("admin-timesheet-notes", args=[timesheet.pk]),
             {"admin_notes": "Not allowed"},
             format="json",
         )

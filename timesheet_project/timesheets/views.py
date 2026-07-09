@@ -1,11 +1,13 @@
 import base64
 import binascii
+from typing import cast
 
 from django.core.files.base import ContentFile
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -70,7 +72,7 @@ class TimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewset
                 pass
         pdf_bytes = generate_timesheet_pdf(timesheet)
         response = HttpResponse(pdf_bytes, content_type="application/pdf")
-        response["Content-Disposition"] = f'inline; filename="timesheet-{timesheet.id}.pdf"'
+        response["Content-Disposition"] = f'inline; filename="timesheet-{timesheet.pk}.pdf"'
         return response
 
 
@@ -92,16 +94,19 @@ class TimeEntryViewSet(
         context = super().get_serializer_context()
         timesheet_id = self.kwargs.get("timesheet_id")
         if timesheet_id:
-            context["timesheet"] = get_object_or_404(WeeklyTimesheet, pk=timesheet_id, nanny=self.request.user)
+            context["timesheet"] = get_object_or_404(
+                WeeklyTimesheet, pk=timesheet_id, nanny=self.request.user)
         return context
 
     def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset().filter(timesheet_id=kwargs["timesheet_id"])
+        queryset = self.get_queryset().filter(
+            timesheet_id=kwargs["timesheet_id"])
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
     def create(self, request, *args, **kwargs):
-        timesheet = get_object_or_404(WeeklyTimesheet, pk=kwargs["timesheet_id"], nanny=request.user)
+        timesheet = get_object_or_404(
+            WeeklyTimesheet, pk=kwargs["timesheet_id"], nanny=request.user)
         if timesheet.is_submitted:
             return Response({"detail": "Submitted timesheets cannot be edited."}, status=status.HTTP_400_BAD_REQUEST)
         serializer = self.get_serializer(data=request.data)
@@ -114,10 +119,12 @@ class TimeEntryViewSet(
         entry = self.get_object()
         if entry.timesheet.is_submitted:
             return Response({"detail": "Submitted timesheets cannot be edited."}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = self.get_serializer(entry, data=request.data, partial=True)
+        serializer = self.get_serializer(
+            entry, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         changed_fields = list(serializer.validated_data.keys())
-        confirm_invalidate = _is_truthy(request.data.get("confirm_invalidate_signature"))
+        confirm_invalidate = _is_truthy(
+            request.data.get("confirm_invalidate_signature"))
         if entry.signature_status == TimeEntry.SignatureStatus.SIGNED and changed_fields and not confirm_invalidate:
             return Response(
                 {"detail": "Editing a signed entry requires confirm_invalidate_signature=true."},
@@ -143,7 +150,8 @@ class SignatureView(APIView):
     permission_classes = [IsNanny]
 
     def post(self, request, pk):
-        entry = get_object_or_404(TimeEntry.objects.select_related("timesheet", "timesheet__nanny"), pk=pk, timesheet__nanny=request.user)
+        entry = get_object_or_404(TimeEntry.objects.select_related(
+            "timesheet", "timesheet__nanny"), pk=pk, timesheet__nanny=request.user)
         if entry.timesheet.is_submitted:
             return Response({"detail": "Cannot add a signature after submission."}, status=status.HTTP_400_BAD_REQUEST)
         signature_value = request.data.get("image")
@@ -159,9 +167,10 @@ class SignatureView(APIView):
             return Response({"image": "Signature image cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
 
         signature, _ = ParentSignature.objects.get_or_create(entry=entry)
-        signature.image.save(f"signature_{entry.id}.png", ContentFile(decoded), save=False)
+        signature.image.save(
+            f"signature_{entry.pk}.png", ContentFile(decoded), save=False)
         signature.approved_snapshot = {
-            "entry_id": entry.id,
+            "entry_id": entry.pk,
             "work_date": entry.work_date.isoformat(),
             "family_name": entry.family_name,
             "start_time": entry.start_time.isoformat(),
@@ -181,8 +190,10 @@ class AdminTimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vi
     permission_classes = [IsAdmin]
 
     def get_queryset(self):
-        queryset = WeeklyTimesheet.objects.filter(submission__isnull=False).select_related("nanny", "submission").prefetch_related(get_timesheet_entry_prefetch())
-        return filter_submitted_timesheets(queryset, self.request.query_params)
+        queryset = WeeklyTimesheet.objects.filter(submission__isnull=False).select_related(
+            "nanny", "submission").prefetch_related(get_timesheet_entry_prefetch())
+        request = cast(Request, self.request)
+        return filter_submitted_timesheets(queryset, request.query_params)
 
     def get_serializer_class(self):
         if self.action in {"retrieve", "notes"}:
@@ -199,7 +210,8 @@ class AdminTimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vi
     @action(detail=True, methods=["patch"], url_path="notes")
     def notes(self, request, pk=None):
         timesheet = self.get_object()
-        serializer = AdminNotesUpdateSerializer(timesheet, data=request.data, partial=True)
+        serializer = AdminNotesUpdateSerializer(
+            timesheet, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(AdminTimesheetDetailSerializer(timesheet).data)

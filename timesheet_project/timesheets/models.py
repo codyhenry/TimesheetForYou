@@ -10,13 +10,16 @@ class WeeklyTimesheet(models.Model):
         SUBMITTED_WITH_UNSIGNED_ENTRIES = "submitted_with_unsigned_entries", "Submitted With Unsigned Entries"
         SUBMITTED_FULLY_SIGNED = "submitted_fully_signed", "Submitted Fully Signed"
 
-    nanny = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="weekly_timesheets")
+    nanny = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="weekly_timesheets")
     week_start_date = models.DateField()
     week_end_date = models.DateField()
-    status = models.CharField(max_length=50, choices=Status.choices, default=Status.DRAFT)
+    status = models.CharField(
+        max_length=50, choices=Status.choices, default=Status.DRAFT)
     admin_notes = models.TextField(blank=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
-    pdf_file = models.FileField(upload_to="timesheet_pdfs/", null=True, blank=True)
+    pdf_file = models.FileField(
+        upload_to="timesheet_pdfs/", null=True, blank=True)
     submission = models.OneToOneField(
         "TimesheetSubmission",
         null=True,
@@ -48,7 +51,8 @@ class TimeEntry(models.Model):
         SIGNED = "signed", "Signed"
         SIGNATURE_INVALIDATED = "signature_invalidated", "Signature Invalidated"
 
-    timesheet = models.ForeignKey(WeeklyTimesheet, on_delete=models.CASCADE, related_name="entries")
+    timesheet = models.ForeignKey(
+        WeeklyTimesheet, on_delete=models.CASCADE, related_name="entries")
     work_date = models.DateField()
     family_name = models.CharField(max_length=255)
     start_time = models.TimeField()
@@ -73,18 +77,20 @@ class TimeEntry(models.Model):
         if self.start_time and self.end_time:
             from .services import calculate_total_hours
 
-            self.total_hours = calculate_total_hours(self.start_time, self.end_time)
+            self.total_hours = calculate_total_hours(
+                self.start_time, self.end_time)
         super().save(*args, **kwargs)
 
 
 class ParentSignature(models.Model):
-    entry = models.OneToOneField(TimeEntry, on_delete=models.CASCADE, related_name="parent_signature")
+    entry = models.OneToOneField(
+        TimeEntry, on_delete=models.CASCADE, related_name="parent_signature")
     image = models.ImageField(upload_to="signatures/")
     signed_at = models.DateTimeField(auto_now_add=True)
     approved_snapshot = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
-        return f"Signature for entry {self.entry_id}"
+        return f"Signature for entry {self.entry.pk}"
 
 
 class TimesheetSubmission(models.Model):
@@ -109,4 +115,4 @@ class TimesheetSubmission(models.Model):
         ordering = ["-submitted_at", "-id"]
 
     def __str__(self):
-        return f"Submission {self.id} ({self.status})"
+        return f"Submission {self.pk} ({self.status})"

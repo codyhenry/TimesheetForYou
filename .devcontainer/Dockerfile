@@ -1,15 +1,16 @@
-FROM mcr.microsoft.com/devcontainers/python:3-3.14-trixie
+FROM mcr.microsoft.com/devcontainers/python:3.12-bookworm
 
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# [Optional] If your requirements rarely change, uncomment this section to add them to the image.
-# COPY requirements.txt /tmp/pip-tmp/
-# RUN pip3 --disable-pip-version-check --no-cache-dir install -r /tmp/pip-tmp/requirements.txt \
-#    && rm -rf /tmp/pip-tmp
-
-# [Optional] Uncomment this section to install additional OS packages.
-# RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-#     && apt-get -y install --no-install-recommends <your-package-list-here>
-
-
-
+# Basic tools useful for Django, npm, and network debugging.
+RUN apt-get update \
+    && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        git \
+        iputils-ping \
+        netcat-openbsd \
+        postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
