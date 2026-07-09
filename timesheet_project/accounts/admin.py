@@ -6,7 +6,7 @@ from .models import User
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    fieldsets = [*BaseUserAdmin.fieldsets,
+    fieldsets = [*(BaseUserAdmin.fieldsets or []),
                  ("Profile", {"fields": ("role", "phone")})]
     list_display = ("username", "first_name", "last_name",
                     "email", "role", "is_staff")

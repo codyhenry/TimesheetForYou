@@ -10,7 +10,7 @@ from timesheets.services import filter_submitted_timesheets, get_timesheet_entry
 
 admin_required = user_passes_test(
     lambda user: user.is_authenticated and (
-        getattr(user, "role", None) == "admin" or user.is_staff)
+        getattr(user, "role", None) == "admin" or getattr(user, "is_staff", False))
 )
 
 

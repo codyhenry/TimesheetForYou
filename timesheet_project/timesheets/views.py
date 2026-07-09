@@ -1,6 +1,6 @@
 import base64
 import binascii
-from typing import cast
+from typing import Any, cast
 
 from django.core.files.base import ContentFile
 from django.http import FileResponse, Http404, HttpResponse
@@ -91,7 +91,7 @@ class TimeEntryViewSet(
         return TimeEntry.objects.filter(timesheet__nanny=self.request.user).select_related("timesheet", "parent_signature")
 
     def get_serializer_context(self):
-        context = super().get_serializer_context()
+        context = cast(dict[str, Any], super().get_serializer_context())
         timesheet_id = self.kwargs.get("timesheet_id")
         if timesheet_id:
             context["timesheet"] = get_object_or_404(

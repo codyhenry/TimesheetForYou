@@ -6,3 +6,7 @@ reportlab>=4.0
 django-filter>=23.0
 python-decouple>=3.8
 psycopg2-binary>=2.9
+
+# Type stubs (for static analysis)
+django-stubs>=6.0
+djangorestframework-stubs>=3.17
