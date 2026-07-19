@@ -12,10 +12,12 @@
         .card { padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 8px; }
         textarea { width: 100%; min-height: 120px; }
         .filters { margin-bottom: 24px; display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(120px, 1fr)); }
+        .muted { color: #6b7280; font-size: 0.9em; }
     </style>
 </head>
 <body>
     <h1>Submitted Timesheets</h1>
+    <p class="muted">Submitted timestamps are shown in your device's local time. Work dates and start/end times are shown exactly as entered on the timesheet.</p>
     <div class="stats">
         <div class="card"><strong>Timesheets:</strong> {{ stats.timesheet_count }}</div>
         <div class="card"><strong>Total Hours:</strong> {{ stats.total_hours }}</div>
@@ -57,7 +59,15 @@
                     <td>{{ timesheet.nanny.get_full_name|default:timesheet.nanny.username }}</td>
                     <td>{{ timesheet.week_start_date }} → {{ timesheet.week_end_date }}</td>
                     <td>{{ timesheet.status }}</td>
-                    <td>{{ timesheet.submitted_at }}</td>
+                    <td>
+                        {% if timesheet.submitted_at %}
+                            <time class="local-datetime" datetime="{{ timesheet.submitted_at|date:'c' }}">
+                                {{ timesheet.submitted_at|date:'c' }}
+                            </time>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
                     <td><a href="{% url 'dashboard-detail' timesheet.id %}">Open</a></td>
                 </tr>
             {% empty %}
@@ -102,5 +112,25 @@
             <button type="submit">Save Notes</button>
         </form>
     {% endif %}
+
+    <script>
+        document.querySelectorAll(".local-datetime").forEach((element) => {
+            const value = element.getAttribute("datetime");
+            if (!value) {
+                return;
+            }
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return;
+            }
+
+            element.textContent = new Intl.DateTimeFormat(undefined, {
+                dateStyle: "medium",
+                timeStyle: "short",
+            }).format(date);
+            element.title = value;
+        });
+    </script>
 </body>
 </html>
