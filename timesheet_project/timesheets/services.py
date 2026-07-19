@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, time as dt_time
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_CEILING
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -16,14 +16,20 @@ SUBMITTED_STATUSES = {
     WeeklyTimesheet.Status.SUBMITTED_FULLY_SIGNED,
     WeeklyTimesheet.Status.SUBMITTED_WITH_UNSIGNED_ENTRIES,
 }
-# Timesheet totals should round to the nearest hundredth of an hour using standard half-up rules.
-HOUR_ROUNDING = ROUND_HALF_UP
+SATURDAY_WEEKDAY = 5
+FRIDAY_WEEKDAY = 4
+QUARTER_HOUR = Decimal("0.25")
+
+
+def get_timesheet_week_range(for_date):
+    """Return the Saturday-Friday week containing for_date."""
+    week_start = for_date - timedelta(days=(for_date.weekday() - SATURDAY_WEEKDAY) % 7)
+    week_end = week_start + timedelta(days=6)
+    return week_start, week_end
 
 
 def get_or_create_current_week_timesheet(user):
-    today = timezone.localdate()
-    week_start = today - timedelta(days=today.weekday())
-    week_end = week_start + timedelta(days=6)
+    week_start, week_end = get_timesheet_week_range(timezone.localdate())
     return WeeklyTimesheet.objects.get_or_create(
         nanny=user,
         week_start_date=week_start,
@@ -38,9 +44,11 @@ def calculate_total_hours(start_time, end_time):
         raise ValidationError(
             {"end_time": "End time must be after start time."})
     total_seconds = Decimal((end_dt - start_dt).total_seconds())
-    hours = (total_seconds / Decimal("3600")
-             ).quantize(Decimal("0.01"), rounding=HOUR_ROUNDING)
-    return hours
+    raw_hours = total_seconds / Decimal("3600")
+    rounded_quarters = (raw_hours / QUARTER_HOUR).to_integral_value(
+        rounding=ROUND_CEILING
+    )
+    return (rounded_quarters * QUARTER_HOUR).quantize(Decimal("0.00"))
 
 
 def get_timesheet_entry_prefetch():
@@ -173,12 +181,12 @@ def generate_timesheet_pdf(timesheet):
 def get_timesheet_submission_deadline(week_end_date):
     """Return the configured submission deadline for a given week.
 
-    Default deadline is Monday 09:00 (local timezone) following week end.
+    Default deadline is Saturday 12:00 (local timezone) after the Friday week end.
     """
     deadline_weekday = int(
-        getattr(settings, "TIMESHEET_SUBMISSION_DEADLINE_WEEKDAY", 0))
+        getattr(settings, "TIMESHEET_SUBMISSION_DEADLINE_WEEKDAY", SATURDAY_WEEKDAY))
     deadline_hour = int(
-        getattr(settings, "TIMESHEET_SUBMISSION_DEADLINE_HOUR", 9))
+        getattr(settings, "TIMESHEET_SUBMISSION_DEADLINE_HOUR", 12))
     deadline_minute = int(
         getattr(settings, "TIMESHEET_SUBMISSION_DEADLINE_MINUTE", 0))
 
