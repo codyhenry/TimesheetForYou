@@ -165,11 +165,11 @@ class TimesheetAPITests(APITestCase):
         self.assertEqual(str(response.data["total_hours"]), "8.50")
 
     def test_time_entry_total_hours_round_up_to_next_quarter_hour(self):
-        self.assertEqual(calculate_total_hours(time(9, 0), time(17, 0)), "8.00")
-        self.assertEqual(calculate_total_hours(time(9, 0), time(17, 1)), "8.25")
-        self.assertEqual(calculate_total_hours(time(9, 0), time(17, 14)), "8.25")
-        self.assertEqual(calculate_total_hours(time(9, 0), time(17, 15)), "8.25")
-        self.assertEqual(calculate_total_hours(time(9, 0), time(17, 16)), "8.50")
+        self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 0))), "8.00")
+        self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 1))), "8.25")
+        self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 14))), "8.25")
+        self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 15))), "8.25")
+        self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 16))), "8.50")
 
     def test_submission_deadline_defaults_to_saturday_noon_after_week_end(self):
         deadline = get_timesheet_submission_deadline(date(2026, 7, 17))
