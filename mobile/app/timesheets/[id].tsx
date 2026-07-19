@@ -13,6 +13,7 @@ import { EntryRow } from "../../src/components/EntryRow";
 import { TimesheetSummaryCard } from "../../src/components/TimesheetSummaryCard";
 import { getTimesheet } from "../../src/api/timesheets";
 import { WeeklyTimesheet } from "../../src/types";
+import { formatLocalDateTime } from "../../src/utils/dates";
 
 export default function TimesheetDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -59,7 +60,7 @@ export default function TimesheetDetailScreen() {
           <Text style={styles.submittedText}>✓ Submitted — Read Only</Text>
           {timesheet.submitted_at && (
             <Text style={styles.submittedAt}>
-              Submitted: {new Date(timesheet.submitted_at).toLocaleString()}
+              Submitted: {formatLocalDateTime(timesheet.submitted_at)}
             </Text>
           )}
         </View>
