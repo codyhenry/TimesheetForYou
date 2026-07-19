@@ -16,6 +16,22 @@ export const formatTime = (timeStr: string): string => {
   return `${displayHour}:${minutes} ${ampm}`;
 };
 
+export const formatLocalDateTime = (dateTimeStr?: string | null): string => {
+  if (!dateTimeStr) {
+    return '—';
+  }
+
+  const date = new Date(dateTimeStr);
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+};
+
 export const getCurrentWeekRange = (): { start: string; end: string } => {
   const now = new Date();
   const monday = startOfWeek(now, { weekStartsOn: 1 });
