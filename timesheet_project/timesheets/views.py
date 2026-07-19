@@ -5,8 +5,10 @@ from typing import Any, cast
 from django.core.files.base import ContentFile
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_date
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -20,15 +22,18 @@ from .serializers import (
     AdminTimesheetListSerializer,
     ParentSignatureSerializer,
     TimeEntrySerializer,
+    TimesheetWeekLockSerializer,
     WeeklyTimesheetDetailSerializer,
     WeeklyTimesheetListSerializer,
 )
 from .services import (
+    ensure_timesheet_week_unlocked,
     filter_submitted_timesheets,
     generate_timesheet_pdf,
     get_or_create_current_week_timesheet,
     get_timesheet_entry_prefetch,
     invalidate_signature_if_needed,
+    lock_timesheet_week,
     submit_timesheet,
     update_timesheet_status,
 )
@@ -107,8 +112,7 @@ class TimeEntryViewSet(
     def create(self, request, *args, **kwargs):
         timesheet = get_object_or_404(
             WeeklyTimesheet, pk=kwargs["timesheet_id"], nanny=request.user)
-        if timesheet.is_submitted:
-            return Response({"detail": "Submitted timesheets cannot be edited."}, status=status.HTTP_400_BAD_REQUEST)
+        ensure_timesheet_week_unlocked(timesheet)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(timesheet=timesheet)
@@ -117,8 +121,7 @@ class TimeEntryViewSet(
 
     def partial_update(self, request, *args, **kwargs):
         entry = self.get_object()
-        if entry.timesheet.is_submitted:
-            return Response({"detail": "Submitted timesheets cannot be edited."}, status=status.HTTP_400_BAD_REQUEST)
+        ensure_timesheet_week_unlocked(entry.timesheet)
         serializer = self.get_serializer(
             entry, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -138,8 +141,7 @@ class TimeEntryViewSet(
 
     def destroy(self, request, *args, **kwargs):
         entry = self.get_object()
-        if entry.timesheet.is_submitted:
-            return Response({"detail": "Submitted timesheets cannot be edited."}, status=status.HTTP_400_BAD_REQUEST)
+        ensure_timesheet_week_unlocked(entry.timesheet)
         timesheet = entry.timesheet
         entry.delete()
         update_timesheet_status(timesheet)
@@ -152,8 +154,7 @@ class SignatureView(APIView):
     def post(self, request, pk):
         entry = get_object_or_404(TimeEntry.objects.select_related(
             "timesheet", "timesheet__nanny"), pk=pk, timesheet__nanny=request.user)
-        if entry.timesheet.is_submitted:
-            return Response({"detail": "Cannot add a signature after submission."}, status=status.HTTP_400_BAD_REQUEST)
+        ensure_timesheet_week_unlocked(entry.timesheet)
         signature_value = request.data.get("image")
         if not signature_value or not str(signature_value).strip():
             return Response({"image": "Signature image is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -234,3 +235,16 @@ class AdminTimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vi
             late_submission_note=late_note,
         )
         return Response(AdminTimesheetDetailSerializer(timesheet).data)
+
+    @action(detail=False, methods=["post"], url_path="lock-week")
+    def lock_week(self, request):
+        week_start = parse_date(str(request.data.get("week_start_date", "")))
+        if week_start is None:
+            raise ValidationError({"week_start_date": "A valid week_start_date is required."})
+
+        week_lock = lock_timesheet_week(
+            week_start,
+            locked_by=request.user,
+            note=str(request.data.get("note", "")).strip(),
+        )
+        return Response(TimesheetWeekLockSerializer(week_lock).data, status=status.HTTP_201_CREATED)
