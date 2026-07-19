@@ -1,7 +1,7 @@
 import base64
 import io
 import shutil
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -16,7 +16,12 @@ from rest_framework.test import APITestCase
 
 from accounts.models import User
 from timesheets.models import ParentSignature, TimeEntry, WeeklyTimesheet
-from timesheets.services import calculate_total_hours, submit_timesheet
+from timesheets.services import (
+    calculate_total_hours,
+    get_timesheet_submission_deadline,
+    get_timesheet_week_range,
+    submit_timesheet,
+)
 
 TEST_MEDIA_ROOT = Path(settings.BASE_DIR) / "test_media"
 
@@ -50,8 +55,7 @@ class TimesheetAPITests(APITestCase):
             role=User.Role.ADMIN,
             is_staff=True,
         )
-        self.week_start = timezone.localdate() - timedelta(days=timezone.localdate().weekday())
-        self.week_end = self.week_start + timedelta(days=6)
+        self.week_start, self.week_end = get_timesheet_week_range(timezone.localdate())
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -111,6 +115,16 @@ class TimesheetAPITests(APITestCase):
         self.assertEqual(WeeklyTimesheet.objects.filter(
             nanny=self.nanny).count(), 1)
 
+    def test_current_week_timesheet_uses_saturday_to_friday_week(self):
+        self.authenticate(self.nanny)
+
+        with patch("timesheets.services.timezone.localdate", return_value=date(2026, 7, 19)):
+            response = self.client.get(reverse("timesheet-current"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["week_start_date"], "2026-07-18")
+        self.assertEqual(response.data["week_end_date"], "2026-07-24")
+
     def test_nanny_cannot_access_another_nannys_timesheet(self):
         self.authenticate(self.nanny)
         other_timesheet = self.create_timesheet(user=self.other_nanny)
@@ -149,6 +163,22 @@ class TimesheetAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(str(response.data["total_hours"]), "8.50")
+
+    def test_time_entry_total_hours_round_up_to_next_quarter_hour(self):
+        self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 0))), "8.00")
+        self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 1))), "8.25")
+        self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 14))), "8.25")
+        self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 15))), "8.25")
+        self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 16))), "8.50")
+
+    def test_submission_deadline_defaults_to_saturday_noon_after_week_end(self):
+        deadline = get_timesheet_submission_deadline(date(2026, 7, 17))
+        expected = timezone.make_aware(
+            datetime(2026, 7, 18, 12, 0),
+            timezone.get_current_timezone(),
+        )
+
+        self.assertEqual(deadline, expected)
 
     def test_end_time_before_start_time_is_rejected(self):
         self.authenticate(self.nanny)
@@ -366,8 +396,8 @@ class TimesheetAPITests(APITestCase):
 
         late_time = timezone.make_aware(
             datetime.combine(
-                timesheet.week_end_date + timedelta(days=2),
-                time(12, 0),
+                timesheet.week_end_date + timedelta(days=1),
+                time(12, 1),
             ),
             timezone.get_current_timezone(),
         )
@@ -381,6 +411,22 @@ class TimesheetAPITests(APITestCase):
         self.assertTrue(timesheet.is_late_submission)
         assert timesheet.submission is not None
         self.assertTrue(timesheet.submission.is_late_submission)
+
+    def test_submission_at_deadline_is_not_late(self):
+        self.authenticate(self.nanny)
+        timesheet = self.create_timesheet()
+        self.create_entry(timesheet)
+        deadline = get_timesheet_submission_deadline(timesheet.week_end_date)
+
+        with patch("timesheets.services.timezone.now", return_value=deadline):
+            response = self.client.post(
+                reverse("timesheet-submit", args=[timesheet.pk]))
+
+        timesheet.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(timesheet.is_late_submission)
+        assert timesheet.submission is not None
+        self.assertFalse(timesheet.submission.is_late_submission)
 
     def test_admin_can_override_submit_and_mark_late(self):
         timesheet = self.create_timesheet(user=self.nanny)
