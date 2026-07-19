@@ -1,5 +1,10 @@
-import client from './client';
-import { FamilyHours, TimeEntry, TimesheetSubmission, WeeklyTimesheet } from '../types';
+import client from "./client";
+import {
+  FamilyHours,
+  TimeEntry,
+  TimesheetSubmission,
+  WeeklyTimesheet,
+} from "../types";
 
 interface ApiParentSignature {
   id: number;
@@ -21,7 +26,7 @@ interface ApiTimeEntry {
   end_time: string;
   total_hours: string | number;
   notes: string;
-  signature_status: TimeEntry['signature_status'];
+  signature_status: TimeEntry["signature_status"];
   has_signature: boolean;
   parent_signature?: ApiParentSignature;
 }
@@ -38,14 +43,17 @@ interface ApiTimesheet {
   id: number;
   week_start_date: string;
   week_end_date: string;
-  status: WeeklyTimesheet['status'];
+  status: WeeklyTimesheet["status"];
   submitted_at: string | null;
   pdf_file?: string | null;
   entries?: ApiTimeEntry[];
   total_hours: string | number;
   signed_entry_count: number;
   unsigned_entry_count: number;
-  total_hours_by_family: Array<{ family_name: string; total_hours: string | number }>;
+  total_hours_by_family: Array<{
+    family_name: string;
+    total_hours: string | number;
+  }>;
   created_at?: string;
   updated_at?: string;
   admin_notes?: string;
@@ -62,7 +70,7 @@ const normalizeEntry = (entry: ApiTimeEntry): TimeEntry => ({
   start_time: normalizeTime(entry.start_time),
   end_time: normalizeTime(entry.end_time),
   total_hours: normalizeHours(entry.total_hours),
-  notes: entry.notes || '',
+  notes: entry.notes || "",
   signature_status: entry.signature_status,
   has_signature: entry.has_signature,
   signature: entry.parent_signature
@@ -70,11 +78,19 @@ const normalizeEntry = (entry: ApiTimeEntry): TimeEntry => ({
         id: entry.parent_signature.id,
         signature_image: entry.parent_signature.image,
         signed_at: entry.parent_signature.signed_at,
-        approved_date: entry.parent_signature.approved_snapshot?.work_date || entry.work_date,
-        approved_start_time: normalizeTime(entry.parent_signature.approved_snapshot?.start_time || entry.start_time),
-        approved_end_time: normalizeTime(entry.parent_signature.approved_snapshot?.end_time || entry.end_time),
+        approved_date:
+          entry.parent_signature.approved_snapshot?.work_date ||
+          entry.work_date,
+        approved_start_time: normalizeTime(
+          entry.parent_signature.approved_snapshot?.start_time ||
+            entry.start_time,
+        ),
+        approved_end_time: normalizeTime(
+          entry.parent_signature.approved_snapshot?.end_time || entry.end_time,
+        ),
         approved_total_hours: normalizeHours(
-          entry.parent_signature.approved_snapshot?.total_hours || entry.total_hours
+          entry.parent_signature.approved_snapshot?.total_hours ||
+            entry.total_hours,
         ),
       }
     : undefined,
@@ -82,7 +98,10 @@ const normalizeEntry = (entry: ApiTimeEntry): TimeEntry => ({
 
 const normalizeSubmission = (
   submission: ApiSubmission | null | undefined,
-  timesheet: Pick<WeeklyTimesheet, 'signed_entry_count' | 'unsigned_entry_count'>
+  timesheet: Pick<
+    WeeklyTimesheet,
+    "signed_entry_count" | "unsigned_entry_count"
+  >,
 ): TimesheetSubmission | null => {
   if (!submission) {
     return null;
@@ -98,8 +117,12 @@ const normalizeSubmission = (
   };
 };
 
-export const normalizeTimesheet = (timesheet: ApiTimesheet): WeeklyTimesheet => {
-  const total_hours_by_family: FamilyHours[] = (timesheet.total_hours_by_family || []).map((family) => ({
+export const normalizeTimesheet = (
+  timesheet: ApiTimesheet,
+): WeeklyTimesheet => {
+  const total_hours_by_family: FamilyHours[] = (
+    timesheet.total_hours_by_family || []
+  ).map((family) => ({
     family_name: family.family_name,
     total_hours: normalizeHours(family.total_hours),
   }));
@@ -127,12 +150,23 @@ export const normalizeTimesheet = (timesheet: ApiTimesheet): WeeklyTimesheet => 
 };
 
 export const getCurrentTimesheet = async (): Promise<WeeklyTimesheet> => {
-  const response = await client.get('/api/timesheets/current/');
-  return normalizeTimesheet(response.data as ApiTimesheet);
+  try {
+    console.log("Fetching current timesheet from /api/timesheets/current/");
+    const response = await client.get("/api/timesheets/current/");
+    console.log("Current timesheet response:", response.data);
+    return normalizeTimesheet(response.data as ApiTimesheet);
+  } catch (error: any) {
+    console.error(
+      "Error fetching current timesheet:",
+      error.message,
+      error.code,
+    );
+    throw error;
+  }
 };
 
 export const listTimesheets = async (): Promise<WeeklyTimesheet[]> => {
-  const response = await client.get('/api/timesheets/');
+  const response = await client.get("/api/timesheets/");
   return (response.data as ApiTimesheet[]).map(normalizeTimesheet);
 };
 

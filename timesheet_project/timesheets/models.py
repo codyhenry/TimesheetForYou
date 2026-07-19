@@ -18,6 +18,8 @@ class WeeklyTimesheet(models.Model):
         max_length=50, choices=Status.choices, default=Status.DRAFT)
     admin_notes = models.TextField(blank=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
+    is_late_submission = models.BooleanField(default=False)
+    late_submission_note = models.TextField(blank=True)
     pdf_file = models.FileField(
         upload_to="timesheet_pdfs/", null=True, blank=True)
     submission = models.OneToOneField(
@@ -107,6 +109,8 @@ class TimesheetSubmission(models.Model):
         related_name="timesheet_submissions",
     )
     submitted_at = models.DateTimeField(auto_now_add=True)
+    is_late_submission = models.BooleanField(default=False)
+    late_submission_note = models.TextField(blank=True)
     total_hours = models.DecimalField(max_digits=8, decimal_places=2)
     pdf_file = models.FileField(upload_to="timesheet_pdfs/submissions/")
     snapshot = models.JSONField(default=dict, blank=True)

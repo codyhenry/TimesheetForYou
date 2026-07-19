@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,35 +10,63 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { getCurrentUser, login as apiLogin, logout as apiLogout } from '../src/api/auth';
-import { useAuth } from '../src/context/AuthContext';
+} from "react-native";
+import {
+  checkServerAccess,
+  getCurrentUser,
+  login as apiLogin,
+  logout as apiLogout,
+} from "../src/api/auth";
+import { useAuth } from "../src/context/AuthContext";
 
 export default function LoginScreen() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter your username and password.');
+      Alert.alert("Error", "Please enter your username and password.");
       return;
     }
 
     setLoading(true);
     try {
-      await apiLogin(username.trim(), password);
-      const user = await getCurrentUser();
-      if (user.role === 'admin') {
-        await apiLogout();
-        Alert.alert('Admin Account', 'Admin users should use the web portal for timesheet management.');
+      // Check server connectivity first
+      console.log("Checking server access...");
+      const serverCheck = await checkServerAccess();
+      if (!serverCheck.connected) {
+        Alert.alert("Server Connection Error", serverCheck.message);
         return;
       }
+
+      console.log("Server check passed, attempting login...");
+      await apiLogin(username.trim(), password);
+      console.log("Login successful, fetching user...");
+
+      const user = await getCurrentUser();
+      console.log("Got user:", user);
+
+      if (user.role === "admin") {
+        await apiLogout();
+        Alert.alert(
+          "Admin Account",
+          "Admin users should use the web portal for timesheet management.",
+        );
+        return;
+      }
+
+      console.log("Calling login context with user:", user);
       login(user);
+      console.log("Login complete");
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Invalid username or password.';
-      Alert.alert('Login Failed', message);
+      console.error("Login error:", error);
+      const message =
+        error.response?.data?.detail ||
+        error.message ||
+        "Invalid username or password.";
+      Alert.alert("Login Failed", message);
     } finally {
       setLoading(false);
     }
@@ -47,9 +75,12 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.header}>
           <Text style={styles.title}>TimesheetForYou</Text>
           <Text style={styles.subtitle}>Nanny Timesheet App</Text>
@@ -73,8 +104,16 @@ export default function LoginScreen() {
             placeholder="Enter password"
             secureTextEntry
           />
-          <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Log In</Text>}
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Log In</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -83,28 +122,28 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  header: { alignItems: 'center', marginBottom: 40 },
-  title: { fontSize: 32, fontWeight: '700', color: '#2c3e50', marginBottom: 8 },
-  subtitle: { fontSize: 16, color: '#6c757d' },
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  scroll: { flexGrow: 1, justifyContent: "center", padding: 24 },
+  header: { alignItems: "center", marginBottom: 40 },
+  title: { fontSize: 32, fontWeight: "700", color: "#2c3e50", marginBottom: 8 },
+  subtitle: { fontSize: 16, color: "#6c757d" },
   form: {},
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 6, color: '#212529' },
+  label: { fontSize: 14, fontWeight: "600", marginBottom: 6, color: "#212529" },
   input: {
     borderWidth: 1,
-    borderColor: '#ced4da',
+    borderColor: "#ced4da",
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     marginBottom: 16,
   },
   button: {
-    backgroundColor: '#2c3e50',
+    backgroundColor: "#2c3e50",
     borderRadius: 8,
     padding: 14,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 8,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });

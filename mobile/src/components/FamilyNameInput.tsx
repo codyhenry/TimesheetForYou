@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import React from "react";
+import { View, Text, TextInput, StyleSheet } from "react-native";
 
 interface Props {
   value: string;
@@ -7,7 +7,11 @@ interface Props {
   error?: string;
 }
 
-export const FamilyNameInput: React.FC<Props> = ({ value, onChange, error }) => {
+export const FamilyNameInput: React.FC<Props> = ({
+  value,
+  onChange,
+  error,
+}) => {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Family Name</Text>
@@ -16,6 +20,7 @@ export const FamilyNameInput: React.FC<Props> = ({ value, onChange, error }) => 
         value={value}
         onChangeText={onChange}
         placeholder="e.g. Johnson Family"
+        placeholderTextColor="#495057"
         autoCapitalize="words"
       />
       {error && <Text style={styles.error}>{error}</Text>}
@@ -25,15 +30,16 @@ export const FamilyNameInput: React.FC<Props> = ({ value, onChange, error }) => 
 
 const styles = StyleSheet.create({
   container: { marginBottom: 12 },
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 4, color: '#212529' },
+  label: { fontSize: 14, fontWeight: "600", marginBottom: 4, color: "#212529" },
   input: {
     borderWidth: 1,
-    borderColor: '#ced4da',
+    borderColor: "#ced4da",
     borderRadius: 6,
     padding: 10,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: "#212529",
+    backgroundColor: "#fff",
   },
-  inputError: { borderColor: '#dc3545' },
-  error: { color: '#dc3545', fontSize: 12, marginTop: 4 },
+  inputError: { borderColor: "#dc3545" },
+  error: { color: "#dc3545", fontSize: 12, marginTop: 4 },
 });

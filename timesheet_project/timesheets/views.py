@@ -58,7 +58,7 @@ class TimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewset
     @action(detail=True, methods=["post"])
     def submit(self, request, pk=None):
         timesheet = self.get_object()
-        timesheet = submit_timesheet(timesheet)
+        timesheet = submit_timesheet(timesheet, submitted_by=request.user)
         serializer = self.get_serializer(timesheet)
         return Response(serializer.data)
 
@@ -214,4 +214,23 @@ class AdminTimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vi
             timesheet, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        return Response(AdminTimesheetDetailSerializer(timesheet).data)
+
+    @action(detail=True, methods=["post"], url_path="override-submit")
+    def override_submit(self, request, pk=None):
+        timesheet = get_object_or_404(
+            WeeklyTimesheet.objects.select_related(
+                "nanny", "submission").prefetch_related(get_timesheet_entry_prefetch()),
+            pk=pk,
+        )
+        late_note = str(request.data.get("late_submission_note", "")).strip()
+        if not late_note:
+            late_note = "Submitted after deadline by admin override."
+
+        timesheet = submit_timesheet(
+            timesheet,
+            submitted_by=request.user,
+            force_late=True,
+            late_submission_note=late_note,
+        )
         return Response(AdminTimesheetDetailSerializer(timesheet).data)

@@ -1,8 +1,15 @@
-import React, { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import SignatureCanvas from 'react-native-signature-canvas';
-import { captureSignature } from '../../../src/api/signatures';
+import React, { useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import SignatureCanvas from "react-native-signature-canvas";
+import { captureSignature } from "../../../src/api/signatures";
 
 export default function SignatureCaptureScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -16,15 +23,19 @@ export default function SignatureCaptureScreen() {
     setSaving(true);
     try {
       await captureSignature(Number(id), sig);
-      Alert.alert('Success', 'Signature captured successfully.', [
-        { text: 'OK', onPress: () => router.replace(`/entries/${id}`) },
+      Alert.alert("Success", "Signature captured successfully.", [
+        { text: "View Entry", onPress: () => router.replace(`/entries/${id}`) },
+        {
+          text: "Go to Home",
+          onPress: () => router.replace("/timesheets/current"),
+        },
       ]);
     } catch (error: any) {
       const message =
         error.response?.data?.detail ||
         error.response?.data?.image ||
-        'Failed to save signature.';
-      Alert.alert('Error', message);
+        "Failed to save signature.";
+      Alert.alert("Error", message);
     } finally {
       setSaving(false);
       setPendingSave(false);
@@ -45,7 +56,7 @@ export default function SignatureCaptureScreen() {
 
   const handleConfirm = async () => {
     if (!hasSignature) {
-      Alert.alert('Error', 'Please provide a signature before confirming.');
+      Alert.alert("Error", "Please provide a signature before confirming.");
       return;
     }
     setPendingSave(true);
@@ -54,7 +65,9 @@ export default function SignatureCaptureScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.instruction}>Please sign below to confirm this time entry:</Text>
+      <Text style={styles.instruction}>
+        Please sign below to confirm this time entry:
+      </Text>
 
       <View style={styles.canvasContainer}>
         <SignatureCanvas
@@ -84,11 +97,25 @@ export default function SignatureCaptureScreen() {
           onPress={handleConfirm}
           disabled={!hasSignature || saving}
         >
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Confirm Signature</Text>}
+          {saving ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Confirm Signature</Text>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
-          <Text style={styles.cancelText}>Cancel</Text>
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.cancelText}>Back</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.homeButton}
+          onPress={() => router.replace("/timesheets/current")}
+        >
+          <Text style={styles.homeText}>Home</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -96,24 +123,49 @@ export default function SignatureCaptureScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  instruction: { fontSize: 15, padding: 16, color: '#212529', textAlign: 'center' },
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  instruction: {
+    fontSize: 15,
+    padding: 16,
+    color: "#212529",
+    textAlign: "center",
+  },
   canvasContainer: {
     flex: 1,
     margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#dee2e6',
-    overflow: 'hidden',
+    borderColor: "#dee2e6",
+    overflow: "hidden",
   },
   canvas: { flex: 1 },
   actions: { padding: 16, gap: 8 },
-  clearButton: { borderWidth: 1, borderColor: '#6c757d', borderRadius: 8, padding: 12, alignItems: 'center' },
-  clearText: { color: '#6c757d', fontSize: 16, fontWeight: '600' },
-  confirmButton: { backgroundColor: '#28a745', borderRadius: 8, padding: 14, alignItems: 'center' },
-  disabled: { backgroundColor: '#6c757d', opacity: 0.6 },
-  cancelButton: { padding: 10, alignItems: 'center' },
-  cancelText: { color: '#6c757d', fontSize: 14 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  clearButton: {
+    borderWidth: 1,
+    borderColor: "#6c757d",
+    borderRadius: 8,
+    padding: 12,
+    alignItems: "center",
+  },
+  clearText: { color: "#6c757d", fontSize: 16, fontWeight: "600" },
+  confirmButton: {
+    backgroundColor: "#28a745",
+    borderRadius: 8,
+    padding: 14,
+    alignItems: "center",
+  },
+  disabled: { backgroundColor: "#6c757d", opacity: 0.6 },
+  cancelButton: { padding: 10, alignItems: "center" },
+  cancelText: { color: "#6c757d", fontSize: 14 },
+  homeButton: {
+    borderWidth: 1,
+    borderColor: "#2c3e50",
+    borderRadius: 8,
+    padding: 12,
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  homeText: { color: "#2c3e50", fontSize: 16, fontWeight: "600" },
+  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });

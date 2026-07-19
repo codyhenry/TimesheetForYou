@@ -1,9 +1,10 @@
 import base64
 import io
 import shutil
-from datetime import time, timedelta
+from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 from PIL import Image
 from django.conf import settings
@@ -357,3 +358,46 @@ class TimesheetAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_late_submission_is_flagged_when_after_deadline(self):
+        self.authenticate(self.nanny)
+        timesheet = self.create_timesheet()
+        self.create_entry(timesheet)
+
+        late_time = timezone.make_aware(
+            datetime.combine(
+                timesheet.week_end_date + timedelta(days=2),
+                time(12, 0),
+            ),
+            timezone.get_current_timezone(),
+        )
+
+        with patch("timesheets.services.timezone.now", return_value=late_time):
+            response = self.client.post(
+                reverse("timesheet-submit", args=[timesheet.pk]))
+
+        timesheet.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(timesheet.is_late_submission)
+        assert timesheet.submission is not None
+        self.assertTrue(timesheet.submission.is_late_submission)
+
+    def test_admin_can_override_submit_and_mark_late(self):
+        timesheet = self.create_timesheet(user=self.nanny)
+        self.create_entry(timesheet)
+        self.authenticate(self.admin)
+
+        response = self.client.post(
+            reverse("admin-timesheet-override-submit", args=[timesheet.pk]),
+            {"late_submission_note": "Parent emergency delayed signing."},
+            format="json",
+        )
+
+        timesheet.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(timesheet.is_submitted)
+        self.assertTrue(timesheet.is_late_submission)
+        self.assertEqual(timesheet.late_submission_note,
+                         "Parent emergency delayed signing.")
+        assert timesheet.submission is not None
+        self.assertEqual(timesheet.submission.submitted_by_id, self.admin.pk)
