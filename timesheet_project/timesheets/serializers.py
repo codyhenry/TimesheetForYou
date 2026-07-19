@@ -3,8 +3,8 @@ from decimal import Decimal
 from rest_framework import serializers
 
 from accounts.models import User
-from .models import ParentSignature, TimeEntry, TimesheetSubmission, WeeklyTimesheet
-from .services import calculate_total_hours
+from .models import ParentSignature, TimeEntry, TimesheetSubmission, TimesheetWeekLock, WeeklyTimesheet
+from .services import calculate_total_hours, is_timesheet_week_locked
 
 
 class NannySummarySerializer(serializers.ModelSerializer):
@@ -88,11 +88,21 @@ class TimesheetSubmissionSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class TimesheetWeekLockSerializer(serializers.ModelSerializer):
+    locked_by = NannySummarySerializer(read_only=True)
+
+    class Meta:
+        model = TimesheetWeekLock
+        fields = ["id", "week_start_date", "week_end_date", "locked_by", "note", "locked_at"]
+        read_only_fields = fields
+
+
 class WeeklyTimesheetListSerializer(serializers.ModelSerializer):
     total_hours = serializers.SerializerMethodField()
     signed_entry_count = serializers.SerializerMethodField()
     unsigned_entry_count = serializers.SerializerMethodField()
     total_hours_by_family = serializers.SerializerMethodField()
+    is_week_locked = serializers.SerializerMethodField()
 
     class Meta:
         model = WeeklyTimesheet
@@ -104,6 +114,7 @@ class WeeklyTimesheetListSerializer(serializers.ModelSerializer):
             "submitted_at",
             "is_late_submission",
             "late_submission_note",
+            "is_week_locked",
             "total_hours",
             "signed_entry_count",
             "unsigned_entry_count",
@@ -138,6 +149,9 @@ class WeeklyTimesheetListSerializer(serializers.ModelSerializer):
             totals[entry.family_name] += entry.total_hours
         return [{"family_name": family_name, "total_hours": total_hours} for family_name, total_hours in totals.items()]
 
+    def get_is_week_locked(self, obj):
+        return is_timesheet_week_locked(obj)
+
 
 class WeeklyTimesheetDetailSerializer(WeeklyTimesheetListSerializer):
     entries = TimeEntrySerializer(many=True, read_only=True)
@@ -153,14 +167,14 @@ class AdminTimesheetListSerializer(WeeklyTimesheetListSerializer):
 
     class Meta(WeeklyTimesheetListSerializer.Meta):
         fields = ["id", "nanny", "week_start_date", "week_end_date", "status",
-                  "submitted_at", "total_hours", "signed_entry_count", "unsigned_entry_count"]
+                  "submitted_at", "is_late_submission", "is_week_locked", "total_hours", "signed_entry_count", "unsigned_entry_count"]
 
 
 class AdminTimesheetDetailSerializer(WeeklyTimesheetDetailSerializer):
     nanny = NannySummarySerializer(read_only=True)
 
     class Meta(WeeklyTimesheetDetailSerializer.Meta):
-        fields = ["id", "nanny", "week_start_date", "week_end_date", "status", "submitted_at", "admin_notes",
+        fields = ["id", "nanny", "week_start_date", "week_end_date", "status", "submitted_at", "is_late_submission", "late_submission_note", "is_week_locked", "admin_notes",
                   "total_hours", "signed_entry_count", "unsigned_entry_count", "total_hours_by_family", "entries", "submission"]
 
 
