@@ -1,6 +1,7 @@
 import client from "./client";
 import {
   FamilyHours,
+  RequestIncentiveGroup,
   TimeEntry,
   TimesheetSubmission,
   WeeklyTimesheet,
@@ -15,6 +16,7 @@ interface ApiParentSignature {
     start_time?: string;
     end_time?: string;
     total_hours?: string;
+    family_requested_nanny?: boolean;
   };
 }
 
@@ -26,6 +28,7 @@ interface ApiTimeEntry {
   end_time: string;
   total_hours: string | number;
   notes: string;
+  family_requested_nanny: boolean;
   signature_status: TimeEntry["signature_status"];
   has_signature: boolean;
   parent_signature?: ApiParentSignature;
@@ -50,6 +53,12 @@ interface ApiTimesheet {
   total_hours: string | number;
   signed_entry_count: number;
   unsigned_entry_count: number;
+  requested_entry_count?: number;
+  request_incentive_count?: number;
+  lifetime_requested_entry_count?: number;
+  requests_until_next_incentive?: number;
+  request_incentive_groups?: RequestIncentiveGroup[];
+  is_week_locked?: boolean;
   total_hours_by_family: Array<{
     family_name: string;
     total_hours: string | number;
@@ -71,6 +80,7 @@ const normalizeEntry = (entry: ApiTimeEntry): TimeEntry => ({
   end_time: normalizeTime(entry.end_time),
   total_hours: normalizeHours(entry.total_hours),
   notes: entry.notes || "",
+  family_requested_nanny: Boolean(entry.family_requested_nanny),
   signature_status: entry.signature_status,
   has_signature: entry.has_signature,
   signature: entry.parent_signature
@@ -92,6 +102,9 @@ const normalizeEntry = (entry: ApiTimeEntry): TimeEntry => ({
           entry.parent_signature.approved_snapshot?.total_hours ||
             entry.total_hours,
         ),
+        approved_family_requested_nanny:
+          entry.parent_signature.approved_snapshot?.family_requested_nanny ??
+          entry.family_requested_nanny,
       }
     : undefined,
 });
@@ -138,6 +151,12 @@ export const normalizeTimesheet = (
     total_hours: normalizeHours(timesheet.total_hours),
     signed_entry_count: timesheet.signed_entry_count,
     unsigned_entry_count: timesheet.unsigned_entry_count,
+    requested_entry_count: timesheet.requested_entry_count ?? 0,
+    request_incentive_count: timesheet.request_incentive_count ?? 0,
+    lifetime_requested_entry_count: timesheet.lifetime_requested_entry_count ?? 0,
+    requests_until_next_incentive: timesheet.requests_until_next_incentive ?? 5,
+    request_incentive_groups: timesheet.request_incentive_groups ?? [],
+    is_week_locked: Boolean(timesheet.is_week_locked),
     total_hours_by_family,
     created_at: timesheet.created_at,
     updated_at: timesheet.updated_at,
