@@ -172,6 +172,9 @@ export default function NewEntryScreen() {
             <Text style={styles.previewText}>
               Preview: {hoursPreview} hours
             </Text>
+            <Text style={styles.previewHelp}>
+              Hours are automatically rounded up to the next 0.25 hour.
+            </Text>
           </View>
         )}
 
@@ -269,6 +272,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   previewText: { color: "#155724", fontWeight: "600" },
+  previewHelp: { color: "#155724", fontSize: 12, lineHeight: 18, marginTop: 3 },
   button: {
     backgroundColor: "#2c3e50",
     borderRadius: 8,
