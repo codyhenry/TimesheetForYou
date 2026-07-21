@@ -6,6 +6,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -31,6 +32,7 @@ export default function NewEntryScreen() {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
+  const [familyRequestedNanny, setFamilyRequestedNanny] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -76,6 +78,7 @@ export default function NewEntryScreen() {
         start_time: startTime,
         end_time: endTime,
         notes: notes.trim(),
+        family_requested_nanny: familyRequestedNanny,
       });
       router.back();
     } catch (error: any) {
@@ -137,6 +140,19 @@ export default function NewEntryScreen() {
           error={errors.familyName}
         />
 
+        <View style={styles.requestRow}>
+          <View style={styles.requestCopy}>
+            <Text style={styles.requestTitle}>Requested by family</Text>
+            <Text style={styles.helpText}>
+              Turn this on when the family specifically requested you for this day.
+            </Text>
+          </View>
+          <Switch
+            value={familyRequestedNanny}
+            onValueChange={setFamilyRequestedNanny}
+          />
+        </View>
+
         <TimeInput
           label="Start Time"
           value={startTime}
@@ -160,6 +176,7 @@ export default function NewEntryScreen() {
         )}
 
         <Text style={styles.label}>Notes (optional)</Text>
+        <Text style={styles.helpText}>Notes are visible to admins.</Text>
         <TextInput
           style={[styles.input, styles.textarea]}
           value={notes}
@@ -230,6 +247,21 @@ const styles = StyleSheet.create({
   inputError: { borderColor: "#dc3545" },
   textarea: { height: 80, textAlignVertical: "top" },
   error: { color: "#dc3545", fontSize: 12, marginTop: -8, marginBottom: 8 },
+  helpText: { color: "#6c757d", fontSize: 12, lineHeight: 18, marginBottom: 8 },
+  requestRow: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ced4da",
+    borderRadius: 6,
+    padding: 12,
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  requestCopy: { flex: 1 },
+  requestTitle: { fontSize: 15, fontWeight: "700", color: "#212529", marginBottom: 2 },
   previewBox: {
     backgroundColor: "#d4edda",
     borderRadius: 6,
