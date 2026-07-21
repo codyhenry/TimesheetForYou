@@ -15,6 +15,10 @@ import { TimesheetSummaryCard } from "../../src/components/TimesheetSummaryCard"
 import { useAuth } from "../../src/context/AuthContext";
 import { getCurrentTimesheet } from "../../src/api/timesheets";
 import { WeeklyTimesheet } from "../../src/types";
+import {
+  getInAppTimesheetReminder,
+  isTimesheetSubmitted,
+} from "../../src/utils/timesheetReminders";
 
 export default function CurrentTimesheetScreen() {
   const [timesheet, setTimesheet] = useState<WeeklyTimesheet | null>(null);
@@ -57,9 +61,9 @@ export default function CurrentTimesheetScreen() {
     void fetchTimesheet();
   };
 
-  const isSubmitted =
-    timesheet?.status === "submitted_with_unsigned_entries" ||
-    timesheet?.status === "submitted_fully_signed";
+  const isSubmitted = timesheet ? isTimesheetSubmitted(timesheet) : false;
+  const isWeekLocked = Boolean(timesheet?.is_week_locked);
+  const reminder = timesheet ? getInAppTimesheetReminder(timesheet) : null;
 
   if (loading) {
     return (
@@ -102,6 +106,22 @@ export default function CurrentTimesheetScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {reminder && (
+          <View style={styles.reminderBanner}>
+            <Text style={styles.reminderTitle}>{reminder.title}</Text>
+            <Text style={styles.reminderText}>{reminder.message}</Text>
+          </View>
+        )}
+
+        {isWeekLocked && (
+          <View style={styles.lockedBanner}>
+            <Text style={styles.lockedTitle}>Week locked</Text>
+            <Text style={styles.lockedText}>
+              This week has been finalized by the office. Entries and signatures can no longer be changed.
+            </Text>
+          </View>
+        )}
+
         <TimesheetSummaryCard timesheet={timesheet} />
 
         <View style={styles.section}>
@@ -116,14 +136,14 @@ export default function CurrentTimesheetScreen() {
               key={entry.id}
               entry={entry}
               timesheetId={timesheet.id}
-              isReadOnly={isSubmitted}
+              isReadOnly={isWeekLocked}
             />
           ))}
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        {!isSubmitted && (
+        {!isWeekLocked && (
           <>
             <TouchableOpacity
               style={styles.primaryButton}
@@ -138,7 +158,9 @@ export default function CurrentTimesheetScreen() {
                 style={styles.submitButton}
                 onPress={() => router.push(`/submit/${timesheet.id}`)}
               >
-                <Text style={styles.buttonText}>Submit Timesheet</Text>
+                <Text style={styles.buttonText}>
+                  {isSubmitted ? "Resubmit Timesheet" : "Submit Timesheet"}
+                </Text>
               </TouchableOpacity>
             )}
           </>
@@ -171,6 +193,26 @@ export default function CurrentTimesheetScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f9fa" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  reminderBanner: {
+    backgroundColor: "#fff3cd",
+    margin: 12,
+    borderRadius: 8,
+    padding: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: "#ffc107",
+  },
+  reminderTitle: { color: "#856404", fontSize: 15, fontWeight: "700", marginBottom: 4 },
+  reminderText: { color: "#856404", fontSize: 13, lineHeight: 19 },
+  lockedBanner: {
+    backgroundColor: "#e9ecef",
+    margin: 12,
+    borderRadius: 8,
+    padding: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: "#6c757d",
+  },
+  lockedTitle: { color: "#343a40", fontSize: 15, fontWeight: "700", marginBottom: 4 },
+  lockedText: { color: "#343a40", fontSize: 13, lineHeight: 19 },
   section: { marginTop: 8 },
   sectionTitle: {
     fontSize: 16,
