@@ -4,7 +4,15 @@ from rest_framework import serializers
 
 from accounts.models import User
 from .models import ParentSignature, TimeEntry, TimesheetSubmission, TimesheetWeekLock, WeeklyTimesheet
-from .services import calculate_total_hours, is_timesheet_week_locked
+from .services import (
+    calculate_total_hours,
+    get_lifetime_request_count,
+    get_request_incentive_groups_for_timesheet,
+    get_requests_until_next_incentive,
+    get_timesheet_request_count,
+    get_timesheet_request_incentive_count,
+    is_timesheet_week_locked,
+)
 
 
 class NannySummarySerializer(serializers.ModelSerializer):
@@ -32,6 +40,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "timesheet",
             "work_date",
             "family_name",
+            "family_requested_nanny",
             "start_time",
             "end_time",
             "total_hours",
@@ -103,6 +112,10 @@ class WeeklyTimesheetListSerializer(serializers.ModelSerializer):
     unsigned_entry_count = serializers.SerializerMethodField()
     total_hours_by_family = serializers.SerializerMethodField()
     is_week_locked = serializers.SerializerMethodField()
+    requested_entry_count = serializers.SerializerMethodField()
+    request_incentive_count = serializers.SerializerMethodField()
+    lifetime_requested_entry_count = serializers.SerializerMethodField()
+    requests_until_next_incentive = serializers.SerializerMethodField()
 
     class Meta:
         model = WeeklyTimesheet
@@ -119,6 +132,10 @@ class WeeklyTimesheetListSerializer(serializers.ModelSerializer):
             "signed_entry_count",
             "unsigned_entry_count",
             "total_hours_by_family",
+            "requested_entry_count",
+            "request_incentive_count",
+            "lifetime_requested_entry_count",
+            "requests_until_next_incentive",
             "admin_notes",
         ]
 
@@ -152,30 +169,78 @@ class WeeklyTimesheetListSerializer(serializers.ModelSerializer):
     def get_is_week_locked(self, obj):
         return is_timesheet_week_locked(obj)
 
+    def get_requested_entry_count(self, obj):
+        return get_timesheet_request_count(obj)
+
+    def get_request_incentive_count(self, obj):
+        return get_timesheet_request_incentive_count(obj)
+
+    def get_lifetime_requested_entry_count(self, obj):
+        return get_lifetime_request_count(obj.nanny)
+
+    def get_requests_until_next_incentive(self, obj):
+        return get_requests_until_next_incentive(obj.nanny)
+
 
 class WeeklyTimesheetDetailSerializer(WeeklyTimesheetListSerializer):
     entries = TimeEntrySerializer(many=True, read_only=True)
     submission = TimesheetSubmissionSerializer(read_only=True)
+    request_incentive_groups = serializers.SerializerMethodField()
 
     class Meta(WeeklyTimesheetListSerializer.Meta):
         fields = WeeklyTimesheetListSerializer.Meta.fields + \
-            ["entries", "submission"]
+            ["entries", "submission", "request_incentive_groups"]
+
+    def get_request_incentive_groups(self, obj):
+        return get_request_incentive_groups_for_timesheet(obj)
 
 
 class AdminTimesheetListSerializer(WeeklyTimesheetListSerializer):
     nanny = NannySummarySerializer(read_only=True)
 
     class Meta(WeeklyTimesheetListSerializer.Meta):
-        fields = ["id", "nanny", "week_start_date", "week_end_date", "status",
-                  "submitted_at", "is_late_submission", "is_week_locked", "total_hours", "signed_entry_count", "unsigned_entry_count"]
+        fields = [
+            "id",
+            "nanny",
+            "week_start_date",
+            "week_end_date",
+            "status",
+            "submitted_at",
+            "is_late_submission",
+            "is_week_locked",
+            "total_hours",
+            "signed_entry_count",
+            "unsigned_entry_count",
+            "requested_entry_count",
+            "request_incentive_count",
+        ]
 
 
 class AdminTimesheetDetailSerializer(WeeklyTimesheetDetailSerializer):
     nanny = NannySummarySerializer(read_only=True)
 
     class Meta(WeeklyTimesheetDetailSerializer.Meta):
-        fields = ["id", "nanny", "week_start_date", "week_end_date", "status", "submitted_at", "is_late_submission", "late_submission_note", "is_week_locked", "admin_notes",
-                  "total_hours", "signed_entry_count", "unsigned_entry_count", "total_hours_by_family", "entries", "submission"]
+        fields = [
+            "id",
+            "nanny",
+            "week_start_date",
+            "week_end_date",
+            "status",
+            "submitted_at",
+            "is_late_submission",
+            "late_submission_note",
+            "is_week_locked",
+            "admin_notes",
+            "total_hours",
+            "signed_entry_count",
+            "unsigned_entry_count",
+            "total_hours_by_family",
+            "requested_entry_count",
+            "request_incentive_count",
+            "request_incentive_groups",
+            "entries",
+            "submission",
+        ]
 
 
 class AdminNotesUpdateSerializer(serializers.ModelSerializer):
