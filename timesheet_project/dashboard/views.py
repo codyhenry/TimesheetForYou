@@ -49,6 +49,10 @@ def _get_nanny_options(request):
     return nannies
 
 
+def _format_short_date(value):
+    return f"{value.month}.{value.day}.{value.year % 100:02d}"
+
+
 def _get_week_options():
     week_rows = (
         _submitted_timesheet_queryset()
@@ -59,7 +63,7 @@ def _get_week_options():
     return [
         {
             "value": row["week_start_date"].isoformat(),
-            "label": f'{row["week_start_date"]:%-m.%-d.%y} - {row["week_end_date"]:%-m.%-d.%y}',
+            "label": f'{_format_short_date(row["week_start_date"])} - {_format_short_date(row["week_end_date"])}',
         }
         for row in week_rows
     ]
