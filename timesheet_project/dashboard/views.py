@@ -50,12 +50,19 @@ def _get_nanny_options(request):
 
 
 def _get_week_options():
-    return list(
+    week_rows = (
         _submitted_timesheet_queryset()
         .values("week_start_date", "week_end_date")
         .distinct()
         .order_by("-week_start_date")
     )
+    return [
+        {
+            "value": row["week_start_date"].isoformat(),
+            "label": f'{row["week_start_date"]:%-m.%-d.%y} - {row["week_end_date"]:%-m.%-d.%y}',
+        }
+        for row in week_rows
+    ]
 
 
 def _get_filter_options(request):
