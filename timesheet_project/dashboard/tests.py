@@ -1,5 +1,5 @@
 import shutil
-from datetime import date, time
+from datetime import date, time, timedelta
 from pathlib import Path
 
 from django.conf import settings
@@ -51,7 +51,7 @@ class DashboardFilterTests(TestCase):
         timesheet = WeeklyTimesheet.objects.create(
             nanny=nanny,
             week_start_date=week_start,
-            week_end_date=date.fromordinal(week_start.toordinal() + 6),
+            week_end_date=week_start + timedelta(days=6),
         )
         TimeEntry.objects.create(
             timesheet=timesheet,
