@@ -19,6 +19,7 @@ SUBMITTED_STATUSES = {
 SATURDAY_WEEKDAY = 5
 FRIDAY_WEEKDAY = 4
 QUARTER_HOUR = Decimal("0.25")
+REQUESTS_PER_INCENTIVE = 5
 
 
 def get_timesheet_week_range(for_date):
@@ -134,6 +135,79 @@ def lock_timesheet_week(week_start_date, locked_by=None, note=""):
     return week_lock
 
 
+def get_requested_entries_for_nanny(nanny):
+    return (
+        TimeEntry.objects.filter(
+            timesheet__nanny=nanny,
+            family_requested_nanny=True,
+        )
+        .select_related("timesheet", "timesheet__nanny")
+        .order_by("work_date", "timesheet__week_start_date", "id")
+    )
+
+
+def get_lifetime_request_count(nanny):
+    return get_requested_entries_for_nanny(nanny).count()
+
+
+def get_timesheet_request_count(timesheet):
+    return timesheet.entries.filter(family_requested_nanny=True).count()
+
+
+def get_requests_until_next_incentive(nanny):
+    remainder = get_lifetime_request_count(nanny) % REQUESTS_PER_INCENTIVE
+    if remainder == 0:
+        return REQUESTS_PER_INCENTIVE
+    return REQUESTS_PER_INCENTIVE - remainder
+
+
+def _request_entry_summary(entry, request_number):
+    timesheet = entry.timesheet
+    return {
+        "request_number": request_number,
+        "entry_id": entry.id,
+        "timesheet_id": timesheet.id,
+        "work_date": entry.work_date.isoformat(),
+        "family_name": entry.family_name,
+        "week_start_date": timesheet.week_start_date.isoformat(),
+        "week_end_date": timesheet.week_end_date.isoformat(),
+    }
+
+
+def get_request_incentive_groups_for_timesheet(timesheet):
+    """Return lifetime request milestone groups earned by this timesheet.
+
+    Incentives are earned on request numbers 5, 10, 15, etc. The group is
+    attached to the timesheet containing the milestone request entry.
+    """
+    requested_entries = list(get_requested_entries_for_nanny(timesheet.nanny))
+    groups = []
+
+    for milestone_index in range(REQUESTS_PER_INCENTIVE - 1, len(requested_entries), REQUESTS_PER_INCENTIVE):
+        milestone_entry = requested_entries[milestone_index]
+        if milestone_entry.timesheet_id != timesheet.id:
+            continue
+
+        group_start = milestone_index - (REQUESTS_PER_INCENTIVE - 1)
+        group_entries = requested_entries[group_start:milestone_index + 1]
+        groups.append(
+            {
+                "incentive_number": (milestone_index + 1) // REQUESTS_PER_INCENTIVE,
+                "milestone_request_number": milestone_index + 1,
+                "milestone_entry_id": milestone_entry.id,
+                "entries": [
+                    _request_entry_summary(entry, group_start + offset + 1)
+                    for offset, entry in enumerate(group_entries)
+                ],
+            }
+        )
+    return groups
+
+
+def get_timesheet_request_incentive_count(timesheet):
+    return len(get_request_incentive_groups_for_timesheet(timesheet))
+
+
 def update_timesheet_status(timesheet):
     if timesheet.is_submitted or timesheet.submission_id or timesheet.submitted_at:
         return timesheet
@@ -158,7 +232,7 @@ def update_timesheet_status(timesheet):
 
 
 def invalidate_signature_if_needed(entry, changed_fields):
-    tracked_fields = {"work_date", "family_name",
+    tracked_fields = {"work_date", "family_name", "family_requested_nanny",
                       "start_time", "end_time", "total_hours", "notes"}
     if entry.signature_status != TimeEntry.SignatureStatus.SIGNED:
         return False
@@ -183,11 +257,14 @@ def _build_submission_snapshot(timesheet, entries, total_hours):
         "week_start_date": timesheet.week_start_date.isoformat(),
         "week_end_date": timesheet.week_end_date.isoformat(),
         "total_hours": str(total_hours),
+        "requested_entry_count": get_timesheet_request_count(timesheet),
+        "request_incentive_count": get_timesheet_request_incentive_count(timesheet),
         "entries": [
             {
                 "id": entry.id,
                 "work_date": entry.work_date.isoformat(),
                 "family_name": entry.family_name,
+                "family_requested_nanny": entry.family_requested_nanny,
                 "start_time": entry.start_time.isoformat(),
                 "end_time": entry.end_time.isoformat(),
                 "total_hours": str(entry.total_hours),

@@ -6,6 +6,15 @@ from .models import ParentSignature, TimeEntry, TimesheetSubmission, TimesheetWe
 class TimeEntryInline(admin.TabularInline):
     model = TimeEntry
     extra = 0
+    fields = (
+        "work_date",
+        "family_name",
+        "family_requested_nanny",
+        "start_time",
+        "end_time",
+        "total_hours",
+        "signature_status",
+    )
 
 
 @admin.register(WeeklyTimesheet)
@@ -26,8 +35,18 @@ class TimesheetWeekLockAdmin(admin.ModelAdmin):
 
 @admin.register(TimeEntry)
 class TimeEntryAdmin(admin.ModelAdmin):
-    list_display = ("id", "timesheet", "work_date", "family_name", "start_time", "end_time", "total_hours", "signature_status")
-    list_filter = ("signature_status", "work_date", "family_name")
+    list_display = (
+        "id",
+        "timesheet",
+        "work_date",
+        "family_name",
+        "family_requested_nanny",
+        "start_time",
+        "end_time",
+        "total_hours",
+        "signature_status",
+    )
+    list_filter = ("signature_status", "family_requested_nanny", "work_date", "family_name")
 
 
 @admin.register(ParentSignature)

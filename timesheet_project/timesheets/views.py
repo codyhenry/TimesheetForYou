@@ -174,6 +174,7 @@ class SignatureView(APIView):
             "entry_id": entry.pk,
             "work_date": entry.work_date.isoformat(),
             "family_name": entry.family_name,
+            "family_requested_nanny": entry.family_requested_nanny,
             "start_time": entry.start_time.isoformat(),
             "end_time": entry.end_time.isoformat(),
             "total_hours": str(entry.total_hours),

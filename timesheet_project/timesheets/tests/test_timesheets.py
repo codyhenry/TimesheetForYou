@@ -18,6 +18,10 @@ from accounts.models import User
 from timesheets.models import ParentSignature, TimeEntry, TimesheetWeekLock, WeeklyTimesheet
 from timesheets.services import (
     calculate_total_hours,
+    get_lifetime_request_count,
+    get_request_incentive_groups_for_timesheet,
+    get_requests_until_next_incentive,
+    get_timesheet_request_incentive_count,
     get_timesheet_submission_deadline,
     get_timesheet_week_range,
     submit_timesheet,
@@ -67,17 +71,30 @@ class TimesheetAPITests(APITestCase):
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
     def create_timesheet(self, user=None):
+        return self.create_timesheet_for_week(self.week_start, user=user)
+
+    def create_timesheet_for_week(self, week_start, user=None):
         return WeeklyTimesheet.objects.create(
             nanny=user or self.nanny,
-            week_start_date=self.week_start,
-            week_end_date=self.week_end,
+            week_start_date=week_start,
+            week_end_date=week_start + timedelta(days=6),
         )
 
-    def create_entry(self, timesheet, signed=False, work_date=None, family_name="Smith", start_time=time(9, 0), end_time=time(17, 0)):
+    def create_entry(
+        self,
+        timesheet,
+        signed=False,
+        work_date=None,
+        family_name="Smith",
+        family_requested_nanny=False,
+        start_time=time(9, 0),
+        end_time=time(17, 0),
+    ):
         entry = TimeEntry.objects.create(
             timesheet=timesheet,
             work_date=work_date or timesheet.week_start_date,
             family_name=family_name,
+            family_requested_nanny=family_requested_nanny,
             start_time=start_time,
             end_time=end_time,
             total_hours=calculate_total_hours(start_time, end_time),
@@ -102,6 +119,16 @@ class TimesheetAPITests(APITestCase):
 
     def submit_existing_timesheet(self, timesheet):
         return submit_timesheet(timesheet)
+
+    def seed_requested_entries_before_current_week(self, count):
+        for index in range(count, 0, -1):
+            week_start = self.week_start - timedelta(days=7 * index)
+            timesheet = self.create_timesheet_for_week(week_start)
+            self.create_entry(
+                timesheet,
+                family_name=f"Family {index}",
+                family_requested_nanny=True,
+            )
 
     def test_nanny_can_get_create_current_week_timesheet(self):
         self.authenticate(self.nanny)
@@ -163,6 +190,27 @@ class TimesheetAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(str(response.data["total_hours"]), "8.50")
+
+    def test_time_entry_can_mark_family_requested_nanny(self):
+        self.authenticate(self.nanny)
+        timesheet = self.create_timesheet()
+
+        response = self.client.post(
+            reverse("entry-list-create", args=[timesheet.pk]),
+            {
+                "work_date": str(self.week_start),
+                "family_name": "Smith",
+                "family_requested_nanny": True,
+                "start_time": "09:00:00",
+                "end_time": "17:00:00",
+            },
+            format="json",
+        )
+
+        entry = TimeEntry.objects.get(pk=response.data["id"])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data["family_requested_nanny"])
+        self.assertTrue(entry.family_requested_nanny)
 
     def test_time_entry_total_hours_round_up_to_next_quarter_hour(self):
         self.assertEqual(str(calculate_total_hours(time(9, 0), time(17, 0))), "8.00")
@@ -335,6 +383,21 @@ class TimesheetAPITests(APITestCase):
         with timesheet.pdf_file.open("rb") as pdf_file:
             self.assertTrue(pdf_file.read().startswith(b"%PDF"))
 
+    def test_submission_snapshot_includes_requested_by_family_marker(self):
+        self.authenticate(self.nanny)
+        timesheet = self.create_timesheet()
+        self.create_entry(timesheet, family_requested_nanny=True)
+
+        response = self.client.post(reverse("timesheet-submit", args=[timesheet.pk]))
+        timesheet.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        assert timesheet.submission is not None
+        snapshot = timesheet.submission.snapshot
+        self.assertEqual(snapshot["requested_entry_count"], 1)
+        self.assertEqual(snapshot["request_incentive_count"], 0)
+        self.assertTrue(snapshot["entries"][0]["family_requested_nanny"])
+
     def test_submitted_timesheet_can_be_edited_and_resubmitted_when_week_is_unlocked(self):
         self.authenticate(self.nanny)
         timesheet = self.create_timesheet()
@@ -378,6 +441,53 @@ class TimesheetAPITests(APITestCase):
         self.assertEqual(resubmit_response.status_code, status.HTTP_200_OK)
         self.assertEqual(timesheet.submission_id, first_submission_id)
         self.assertNotEqual(timesheet.pdf_file.name, first_pdf_name)
+
+    def test_request_incentives_are_lifetime_across_weeks_and_families(self):
+        self.seed_requested_entries_before_current_week(4)
+        current_timesheet = self.create_timesheet()
+        milestone_entry = self.create_entry(
+            current_timesheet,
+            family_name="Current Family",
+            family_requested_nanny=True,
+        )
+
+        groups = get_request_incentive_groups_for_timesheet(current_timesheet)
+
+        self.assertEqual(get_lifetime_request_count(self.nanny), 5)
+        self.assertEqual(get_requests_until_next_incentive(self.nanny), 5)
+        self.assertEqual(get_timesheet_request_incentive_count(current_timesheet), 1)
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]["incentive_number"], 1)
+        self.assertEqual(groups[0]["milestone_request_number"], 5)
+        self.assertEqual(groups[0]["milestone_entry_id"], milestone_entry.id)
+        self.assertEqual(len(groups[0]["entries"]), 5)
+
+    def test_admin_list_exposes_request_incentive_count(self):
+        self.seed_requested_entries_before_current_week(4)
+        timesheet = self.create_timesheet()
+        self.create_entry(timesheet, family_requested_nanny=True)
+        self.submit_existing_timesheet(timesheet)
+        self.authenticate(self.admin)
+
+        response = self.client.get(reverse("admin-timesheet-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["request_incentive_count"], 1)
+        self.assertEqual(response.data[0]["requested_entry_count"], 1)
+
+    def test_nanny_detail_exposes_requests_until_next_incentive(self):
+        self.seed_requested_entries_before_current_week(3)
+        timesheet = self.create_timesheet()
+        self.create_entry(timesheet, family_requested_nanny=True)
+        self.authenticate(self.nanny)
+
+        response = self.client.get(reverse("timesheet-detail", args=[timesheet.pk]))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["lifetime_requested_entry_count"], 4)
+        self.assertEqual(response.data["requests_until_next_incentive"], 1)
+        self.assertEqual(response.data["requested_entry_count"], 1)
+        self.assertEqual(response.data["request_incentive_count"], 0)
 
     def test_admin_can_update_admin_notes_after_submission(self):
         timesheet = self.create_timesheet()
