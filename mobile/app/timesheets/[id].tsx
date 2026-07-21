@@ -14,6 +14,7 @@ import { TimesheetSummaryCard } from "../../src/components/TimesheetSummaryCard"
 import { getTimesheet } from "../../src/api/timesheets";
 import { WeeklyTimesheet } from "../../src/types";
 import { formatLocalDateTime } from "../../src/utils/dates";
+import { isTimesheetSubmitted } from "../../src/utils/timesheetReminders";
 
 export default function TimesheetDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,9 +33,8 @@ export default function TimesheetDetailScreen() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const isSubmitted =
-    timesheet?.status === "submitted_with_unsigned_entries" ||
-    timesheet?.status === "submitted_fully_signed";
+  const isSubmitted = timesheet ? isTimesheetSubmitted(timesheet) : false;
+  const isWeekLocked = Boolean(timesheet?.is_week_locked);
 
   if (loading) {
     return (
@@ -57,7 +57,9 @@ export default function TimesheetDetailScreen() {
       <TimesheetSummaryCard timesheet={timesheet} />
       {isSubmitted && (
         <View style={styles.submittedBanner}>
-          <Text style={styles.submittedText}>✓ Submitted — Read Only</Text>
+          <Text style={styles.submittedText}>
+            ✓ Submitted {isWeekLocked ? "— Locked" : "— Editable Until Week Lock"}
+          </Text>
           {timesheet.submitted_at && (
             <Text style={styles.submittedAt}>
               Submitted: {formatLocalDateTime(timesheet.submitted_at)}
@@ -80,7 +82,7 @@ export default function TimesheetDetailScreen() {
             key={entry.id}
             entry={entry}
             timesheetId={timesheet.id}
-            isReadOnly={isSubmitted}
+            isReadOnly={isWeekLocked}
           />
         ))}
       </View>
