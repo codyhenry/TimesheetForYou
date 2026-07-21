@@ -69,6 +69,18 @@ def _get_week_options():
     ]
 
 
+def _get_status_counts(queryset):
+    status_labels = dict(WeeklyTimesheet.Status.choices)
+    return [
+        {
+            "status": row["status"],
+            "label": status_labels.get(row["status"], row["status"]),
+            "count": row["count"],
+        }
+        for row in queryset.values("status").annotate(count=Count("id")).order_by("status")
+    ]
+
+
 def _get_filter_options(request):
     return {
         "nannies": _get_nanny_options(request),
@@ -94,7 +106,7 @@ def index(request, timesheet_id=None):
             queryset, pk=request.GET["timesheet"])
 
     stats = {
-        "status_counts": list(queryset.values("status").annotate(count=Count("id")).order_by("status")),
+        "status_counts": _get_status_counts(queryset),
         "total_hours": queryset.aggregate(total=Sum("entries__total_hours"))["total"] or Decimal("0.00"),
         "timesheet_count": queryset.count(),
     }
