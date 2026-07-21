@@ -38,7 +38,7 @@ export default function SubmitTimesheetScreen() {
       router.replace(
         `/submit/confirmation?timesheetId=${timesheetId}&submittedAt=${encodeURIComponent(
           result.submitted_at || new Date().toISOString()
-        )}&totalHours=${result.total_hours}&status=${result.status}`
+        )}&totalHours=${result.total_hours}&status=${result.status}&requestIncentiveCount=${result.request_incentive_count}`
       );
     } catch (error: any) {
       const message = error.response?.data?.detail || 'Failed to submit timesheet. Please try again.';
