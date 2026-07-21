@@ -5,6 +5,7 @@ import {
   Image,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -32,6 +33,7 @@ export default function EntryDetailScreen() {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
+  const [familyRequestedNanny, setFamilyRequestedNanny] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -45,6 +47,7 @@ export default function EntryDetailScreen() {
         setStartTime(data.start_time);
         setEndTime(data.end_time);
         setNotes(data.notes);
+        setFamilyRequestedNanny(data.family_requested_nanny);
       })
       .catch(() => Alert.alert("Error", "Failed to load entry."))
       .finally(() => setLoading(false));
@@ -83,6 +86,7 @@ export default function EntryDetailScreen() {
         start_time: startTime,
         end_time: endTime,
         notes: notes.trim(),
+        family_requested_nanny: familyRequestedNanny,
         ...(isSigned ? { confirm_invalidate_signature: true } : {}),
       });
       setEntry(updated);
@@ -148,6 +152,18 @@ export default function EntryDetailScreen() {
         {editing ? (
           <>
             <FamilyNameInput value={familyName} onChange={setFamilyName} />
+            <View style={styles.requestRow}>
+              <View style={styles.requestCopy}>
+                <Text style={styles.requestTitle}>Requested by family</Text>
+                <Text style={styles.helpText}>
+                  Turn this on when the family specifically requested you for this day.
+                </Text>
+              </View>
+              <Switch
+                value={familyRequestedNanny}
+                onValueChange={setFamilyRequestedNanny}
+              />
+            </View>
             <TimeInput
               label="Start Time"
               value={startTime}
@@ -162,6 +178,7 @@ export default function EntryDetailScreen() {
               </View>
             )}
             <Text style={styles.label}>Notes</Text>
+            <Text style={styles.helpText}>Notes are visible to admins.</Text>
             <TextInput
               style={[styles.input, styles.textarea]}
               value={notes}
@@ -175,6 +192,12 @@ export default function EntryDetailScreen() {
             <View style={styles.row}>
               <Text style={styles.label}>Family</Text>
               <Text style={styles.value}>{entry.family_name}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Requested by Family</Text>
+              <Text style={[styles.value, entry.family_requested_nanny ? styles.bold : null]}>
+                {entry.family_requested_nanny ? "Yes" : "No"}
+              </Text>
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Start</Text>
@@ -316,6 +339,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   textarea: { height: 80, textAlignVertical: "top" },
+  helpText: { color: "#6c757d", fontSize: 12, lineHeight: 18, marginBottom: 8 },
+  requestRow: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ced4da",
+    borderRadius: 6,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  requestCopy: { flex: 1 },
+  requestTitle: { fontSize: 15, fontWeight: "700", color: "#212529", marginBottom: 2 },
   previewBox: {
     backgroundColor: "#d4edda",
     borderRadius: 6,

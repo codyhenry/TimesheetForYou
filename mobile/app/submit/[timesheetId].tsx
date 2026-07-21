@@ -38,7 +38,7 @@ export default function SubmitTimesheetScreen() {
       router.replace(
         `/submit/confirmation?timesheetId=${timesheetId}&submittedAt=${encodeURIComponent(
           result.submitted_at || new Date().toISOString()
-        )}&totalHours=${result.total_hours}&status=${result.status}`
+        )}&totalHours=${result.total_hours}&status=${result.status}&requestIncentiveCount=${result.request_incentive_count}`
       );
     } catch (error: any) {
       const message = error.response?.data?.detail || 'Failed to submit timesheet. Please try again.';
@@ -65,6 +65,7 @@ export default function SubmitTimesheetScreen() {
   }
 
   const hasUnsigned = timesheet.unsigned_entry_count > 0;
+  const hasIncentive = timesheet.request_incentive_count > 0;
 
   return (
     <ScrollView style={styles.container}>
@@ -86,6 +87,10 @@ export default function SubmitTimesheetScreen() {
           <Text style={styles.label}>Unsigned Entries</Text>
           <Text style={[styles.value, hasUnsigned ? styles.red : styles.green]}>{timesheet.unsigned_entry_count}</Text>
         </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Requested by Family</Text>
+          <Text style={styles.value}>{timesheet.requested_entry_count}</Text>
+        </View>
       </View>
 
       {timesheet.total_hours_by_family?.length > 0 && (
@@ -99,6 +104,21 @@ export default function SubmitTimesheetScreen() {
           ))}
         </View>
       )}
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Request Incentives</Text>
+        {hasIncentive ? (
+          <Text style={styles.incentiveText}>
+            🎁 This timesheet includes {timesheet.request_incentive_count}{' '}
+            {timesheet.request_incentive_count === 1 ? '5-request incentive' : '5-request incentives'}.
+          </Text>
+        ) : (
+          <Text style={styles.infoText}>
+            {timesheet.requests_until_next_incentive} more requested{' '}
+            {timesheet.requests_until_next_incentive === 1 ? 'day' : 'days'} until your next 5-request incentive.
+          </Text>
+        )}
+      </View>
 
       {hasUnsigned && (
         <View style={styles.warningCard}>
@@ -144,6 +164,8 @@ const styles = StyleSheet.create({
   value: { fontSize: 15, fontWeight: '600', color: '#212529' },
   green: { color: '#28a745' },
   red: { color: '#dc3545' },
+  incentiveText: { fontSize: 14, color: '#856404', fontWeight: '700', lineHeight: 20 },
+  infoText: { fontSize: 14, color: '#495057', lineHeight: 20 },
   warningCard: {
     backgroundColor: '#fff3cd',
     margin: 12,

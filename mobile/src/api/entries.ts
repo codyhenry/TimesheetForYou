@@ -10,6 +10,7 @@ interface ApiParentSignature {
     start_time?: string;
     end_time?: string;
     total_hours?: string;
+    family_requested_nanny?: boolean;
   };
 }
 
@@ -21,6 +22,7 @@ interface ApiTimeEntry {
   end_time: string;
   total_hours: string | number;
   notes: string;
+  family_requested_nanny: boolean;
   signature_status: TimeEntry['signature_status'];
   has_signature: boolean;
   parent_signature?: ApiParentSignature;
@@ -32,6 +34,7 @@ export interface CreateEntryData {
   start_time: string;
   end_time: string;
   notes?: string;
+  family_requested_nanny?: boolean;
 }
 
 export interface UpdateEntryData extends Partial<CreateEntryData> {
@@ -49,6 +52,7 @@ const normalizeEntry = (entry: ApiTimeEntry): TimeEntry => ({
   end_time: normalizeTime(entry.end_time),
   total_hours: normalizeHours(entry.total_hours),
   notes: entry.notes || '',
+  family_requested_nanny: Boolean(entry.family_requested_nanny),
   signature_status: entry.signature_status,
   has_signature: entry.has_signature,
   signature: entry.parent_signature
@@ -62,6 +66,9 @@ const normalizeEntry = (entry: ApiTimeEntry): TimeEntry => ({
         approved_total_hours: normalizeHours(
           entry.parent_signature.approved_snapshot?.total_hours || entry.total_hours
         ),
+        approved_family_requested_nanny:
+          entry.parent_signature.approved_snapshot?.family_requested_nanny ??
+          entry.family_requested_nanny,
       }
     : undefined,
 });
@@ -72,6 +79,9 @@ const toApiPayload = (data: Partial<CreateEntryData>) => ({
   ...(data.start_time !== undefined ? { start_time: data.start_time } : {}),
   ...(data.end_time !== undefined ? { end_time: data.end_time } : {}),
   ...(data.notes !== undefined ? { notes: data.notes } : {}),
+  ...(data.family_requested_nanny !== undefined
+    ? { family_requested_nanny: data.family_requested_nanny }
+    : {}),
 });
 
 export const createEntry = async (timesheetId: number, data: CreateEntryData): Promise<TimeEntry> => {
