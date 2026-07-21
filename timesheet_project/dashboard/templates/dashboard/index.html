@@ -30,7 +30,7 @@
             <strong>Status Counts:</strong>
             <ul>
                 {% for item in stats.status_counts %}
-                    <li>{{ item.status }}: {{ item.count }}</li>
+                    <li>{{ item.label }}: {{ item.count }}</li>
                 {% empty %}
                     <li>No submissions yet</li>
                 {% endfor %}
