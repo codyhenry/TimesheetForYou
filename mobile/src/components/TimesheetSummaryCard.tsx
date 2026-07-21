@@ -34,6 +34,26 @@ export const TimesheetSummaryCard: React.FC<Props> = ({ timesheet }) => {
           <Text style={styles.statLabel}>Unsigned</Text>
         </View>
       </View>
+
+      <View style={styles.incentiveBox}>
+        <Text style={styles.incentiveTitle}>Family Request Incentives</Text>
+        <Text style={styles.incentiveText}>
+          {timesheet.lifetime_requested_entry_count} lifetime requested{' '}
+          {timesheet.lifetime_requested_entry_count === 1 ? 'day' : 'days'}.
+        </Text>
+        {timesheet.request_incentive_count > 0 ? (
+          <Text style={styles.incentiveEarned}>
+            🎁 This timesheet earned {timesheet.request_incentive_count}{' '}
+            {timesheet.request_incentive_count === 1 ? 'incentive' : 'incentives'}.
+          </Text>
+        ) : (
+          <Text style={styles.incentiveText}>
+            {timesheet.requests_until_next_incentive} more requested{' '}
+            {timesheet.requests_until_next_incentive === 1 ? 'day' : 'days'} until your next incentive.
+          </Text>
+        )}
+      </View>
+
       {timesheet.total_hours_by_family?.length > 0 && (
         <View style={styles.families}>
           {timesheet.total_hours_by_family.map((fam) => (
@@ -67,6 +87,16 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, color: '#6c757d' },
   signed: { color: '#28a745' },
   unsigned: { color: '#dc3545' },
+  incentiveBox: {
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    paddingTop: 10,
+    marginBottom: 10,
+    gap: 2,
+  },
+  incentiveTitle: { fontSize: 14, fontWeight: '700', color: '#212529' },
+  incentiveText: { fontSize: 13, color: '#495057', lineHeight: 18 },
+  incentiveEarned: { fontSize: 13, color: '#856404', fontWeight: '700', lineHeight: 18 },
   families: { borderTopWidth: 1, borderTopColor: '#e9ecef', paddingTop: 8 },
   familyRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   familyName: { fontSize: 14, color: '#495057' },
