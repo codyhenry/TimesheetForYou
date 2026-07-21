@@ -7,16 +7,19 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { formatLocalDateTime } from "../../src/utils/dates";
 
 export default function SubmissionConfirmationScreen() {
-  const { timesheetId, submittedAt, totalHours, status } =
+  const { timesheetId, submittedAt, totalHours, status, requestIncentiveCount } =
     useLocalSearchParams<{
       timesheetId: string;
       submittedAt: string;
       totalHours: string;
       status: string;
+      requestIncentiveCount?: string;
     }>();
   const router = useRouter();
+  const incentiveCount = Number(requestIncentiveCount || 0);
 
   const statusLabel =
     status === "submitted_fully_signed"
@@ -46,11 +49,21 @@ export default function SubmissionConfirmationScreen() {
           <View style={styles.row}>
             <Text style={styles.label}>Submitted At</Text>
             <Text style={styles.value}>
-              {new Date(decodeURIComponent(submittedAt)).toLocaleString()}
+              {formatLocalDateTime(decodeURIComponent(submittedAt))}
             </Text>
           </View>
         )}
       </View>
+
+      {incentiveCount > 0 && (
+        <View style={styles.incentiveCard}>
+          <Text style={styles.incentiveTitle}>🎁 Request Incentive Earned</Text>
+          <Text style={styles.incentiveText}>
+            This timesheet includes {incentiveCount}{' '}
+            {incentiveCount === 1 ? '5-request incentive' : '5-request incentives'}.
+          </Text>
+        </View>
+      )}
 
       <View style={styles.actions}>
         <TouchableOpacity
@@ -98,6 +111,16 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 2,
   },
+  incentiveCard: {
+    backgroundColor: "#fff3cd",
+    margin: 12,
+    borderRadius: 8,
+    padding: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: "#ffc107",
+  },
+  incentiveTitle: { fontSize: 16, fontWeight: "700", color: "#856404", marginBottom: 6 },
+  incentiveText: { fontSize: 14, color: "#856404", lineHeight: 20 },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
