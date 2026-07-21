@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ParentSignature, TimeEntry, TimesheetSubmission, WeeklyTimesheet
+from .models import ParentSignature, TimeEntry, TimesheetSubmission, TimesheetWeekLock, WeeklyTimesheet
 
 
 class TimeEntryInline(admin.TabularInline):
@@ -14,6 +14,14 @@ class WeeklyTimesheetAdmin(admin.ModelAdmin):
     list_filter = ("status", "week_start_date")
     search_fields = ("nanny__username", "nanny__first_name", "nanny__last_name")
     inlines = [TimeEntryInline]
+
+
+@admin.register(TimesheetWeekLock)
+class TimesheetWeekLockAdmin(admin.ModelAdmin):
+    list_display = ("week_start_date", "week_end_date", "locked_by", "locked_at")
+    list_filter = ("week_start_date", "locked_at")
+    search_fields = ("locked_by__username", "locked_by__first_name", "locked_by__last_name", "note")
+    readonly_fields = ("locked_at",)
 
 
 @admin.register(TimeEntry)

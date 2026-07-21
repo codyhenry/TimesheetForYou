@@ -8,7 +8,7 @@ from django.db.models import Exists, OuterRef, Prefetch
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from .models import TimeEntry, TimesheetSubmission, WeeklyTimesheet
+from .models import TimeEntry, TimesheetSubmission, TimesheetWeekLock, WeeklyTimesheet
 from .pdf import render_timesheet_pdf
 
 
@@ -108,6 +108,32 @@ def filter_submitted_timesheets(queryset, params):
     return queryset.order_by("-week_start_date", "-submitted_at", "-id")
 
 
+def is_timesheet_week_locked(timesheet):
+    return TimesheetWeekLock.objects.filter(
+        week_start_date=timesheet.week_start_date
+    ).exists()
+
+
+def ensure_timesheet_week_unlocked(timesheet):
+    if is_timesheet_week_locked(timesheet):
+        raise ValidationError(
+            {"detail": "This timesheet week is locked and cannot be edited."}
+        )
+
+
+def lock_timesheet_week(week_start_date, locked_by=None, note=""):
+    week_start, week_end = get_timesheet_week_range(week_start_date)
+    week_lock, _ = TimesheetWeekLock.objects.get_or_create(
+        week_start_date=week_start,
+        defaults={
+            "week_end_date": week_end,
+            "locked_by": locked_by,
+            "note": note or "",
+        },
+    )
+    return week_lock
+
+
 def update_timesheet_status(timesheet):
     if timesheet.is_submitted or timesheet.submission_id or timesheet.submitted_at:
         return timesheet
@@ -205,13 +231,11 @@ def is_late_submission(week_end_date, submitted_at):
 
 @transaction.atomic
 def submit_timesheet(timesheet, submitted_by=None, force_late=False, late_submission_note=""):
+    ensure_timesheet_week_unlocked(timesheet)
     entries = list(timesheet.entries.select_related("parent_signature").all())
     if not entries:
         raise ValidationError(
             {"detail": "A timesheet must have at least one entry before submission."})
-    if timesheet.is_submitted or timesheet.submission_id:
-        raise ValidationError(
-            {"detail": "This timesheet has already been submitted."})
 
     total_hours = sum(
         (entry.total_hours for entry in entries), Decimal("0.00"))
@@ -233,16 +257,42 @@ def submit_timesheet(timesheet, submitted_by=None, force_late=False, late_submis
     file_name = f"timesheet_{timesheet.id}_{timestamp:%Y%m%d%H%M%S}.pdf"
     snapshot = _build_submission_snapshot(timesheet, entries, total_hours)
 
-    submission = TimesheetSubmission.objects.create(
-        status=status,
-        submitted_by=submitted_by or timesheet.nanny,
-        is_late_submission=is_late,
-        late_submission_note=late_submission_note or "",
-        total_hours=total_hours,
-        snapshot=snapshot,
-    )
+    submission = timesheet.submission
+    if submission is None:
+        submission = TimesheetSubmission.objects.create(
+            status=status,
+            submitted_by=submitted_by or timesheet.nanny,
+            is_late_submission=is_late,
+            late_submission_note=late_submission_note or "",
+            total_hours=total_hours,
+            snapshot=snapshot,
+        )
+    else:
+        if submission.pdf_file:
+            submission.pdf_file.delete(save=False)
+        submission.status = status
+        submission.submitted_by = submitted_by or timesheet.nanny
+        submission.submitted_at = timestamp
+        submission.is_late_submission = is_late
+        submission.late_submission_note = late_submission_note or ""
+        submission.total_hours = total_hours
+        submission.snapshot = snapshot
+        submission.save(
+            update_fields=[
+                "status",
+                "submitted_by",
+                "submitted_at",
+                "is_late_submission",
+                "late_submission_note",
+                "total_hours",
+                "snapshot",
+            ]
+        )
+
     submission.pdf_file.save(file_name, ContentFile(pdf_bytes), save=True)
 
+    if timesheet.pdf_file:
+        timesheet.pdf_file.delete(save=False)
     timesheet.submission = submission
     timesheet.pdf_file.save(file_name, ContentFile(pdf_bytes), save=False)
     timesheet.save(

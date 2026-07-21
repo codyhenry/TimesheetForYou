@@ -15,7 +15,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
-from timesheets.models import ParentSignature, TimeEntry, WeeklyTimesheet
+from timesheets.models import ParentSignature, TimeEntry, TimesheetWeekLock, WeeklyTimesheet
 from timesheets.services import (
     calculate_total_hours,
     get_timesheet_submission_deadline,
@@ -264,7 +264,7 @@ class TimesheetAPITests(APITestCase):
         self.assertEqual(
             signature.approved_snapshot["family_name"], entry.family_name)
 
-    def test_signature_cannot_be_added_after_submission(self):
+    def test_signature_can_be_added_after_submission_when_week_is_unlocked(self):
         self.authenticate(self.nanny)
         timesheet = self.create_timesheet()
         entry = self.create_entry(timesheet)
@@ -276,7 +276,7 @@ class TimesheetAPITests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_submission_allowed_with_unsigned_entries(self):
         self.authenticate(self.nanny)
@@ -335,29 +335,49 @@ class TimesheetAPITests(APITestCase):
         with timesheet.pdf_file.open("rb") as pdf_file:
             self.assertTrue(pdf_file.read().startswith(b"%PDF"))
 
-    def test_submitted_timesheet_cannot_be_edited(self):
+    def test_submitted_timesheet_can_be_edited_and_resubmitted_when_week_is_unlocked(self):
         self.authenticate(self.nanny)
         timesheet = self.create_timesheet()
         entry = self.create_entry(timesheet)
-        self.client.post(reverse("timesheet-submit", args=[timesheet.pk]))
+        first_submit_time = timezone.make_aware(
+            datetime.combine(timesheet.week_end_date + timedelta(days=1), time(11, 0)),
+            timezone.get_current_timezone(),
+        )
+        second_submit_time = timezone.make_aware(
+            datetime.combine(timesheet.week_end_date + timedelta(days=1), time(11, 30)),
+            timezone.get_current_timezone(),
+        )
 
-        patch_response = self.client.patch(reverse(
-            "entry-detail", args=[entry.pk]), {"family_name": "Edited"}, format="json")
+        with patch("timesheets.services.timezone.now", return_value=first_submit_time):
+            self.client.post(reverse("timesheet-submit", args=[timesheet.pk]))
+        timesheet.refresh_from_db()
+        first_submission_id = timesheet.submission_id
+        first_pdf_name = timesheet.pdf_file.name
+
+        patch_response = self.client.patch(
+            reverse("entry-detail", args=[entry.pk]),
+            {"family_name": "Edited", "confirm_invalidate_signature": True},
+            format="json",
+        )
         create_response = self.client.post(
             reverse("entry-list-create", args=[timesheet.pk]),
             {
-                "work_date": str(self.week_start),
+                "work_date": str(self.week_start + timedelta(days=1)),
                 "family_name": "Late Family",
                 "start_time": "09:00:00",
                 "end_time": "11:00:00",
             },
             format="json",
         )
+        with patch("timesheets.services.timezone.now", return_value=second_submit_time):
+            resubmit_response = self.client.post(reverse("timesheet-submit", args=[timesheet.pk]))
 
-        self.assertEqual(patch_response.status_code,
-                         status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(create_response.status_code,
-                         status.HTTP_400_BAD_REQUEST)
+        timesheet.refresh_from_db()
+        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(resubmit_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(timesheet.submission_id, first_submission_id)
+        self.assertNotEqual(timesheet.pdf_file.name, first_pdf_name)
 
     def test_admin_can_update_admin_notes_after_submission(self):
         timesheet = self.create_timesheet()
@@ -427,6 +447,57 @@ class TimesheetAPITests(APITestCase):
         self.assertFalse(timesheet.is_late_submission)
         assert timesheet.submission is not None
         self.assertFalse(timesheet.submission.is_late_submission)
+
+    def test_admin_can_lock_a_timesheet_week(self):
+        self.authenticate(self.admin)
+
+        response = self.client.post(
+            reverse("admin-timesheet-lock-week"),
+            {"week_start_date": str(self.week_start), "note": "Payroll finalized."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(TimesheetWeekLock.objects.filter(week_start_date=self.week_start).exists())
+        self.assertEqual(response.data["week_start_date"], str(self.week_start))
+        self.assertEqual(response.data["note"], "Payroll finalized.")
+
+    def test_locked_week_blocks_nanny_entry_signature_and_submission_changes(self):
+        timesheet = self.create_timesheet()
+        entry = self.create_entry(timesheet)
+        TimesheetWeekLock.objects.create(
+            week_start_date=timesheet.week_start_date,
+            week_end_date=timesheet.week_end_date,
+            locked_by=self.admin,
+        )
+        self.authenticate(self.nanny)
+
+        patch_response = self.client.patch(
+            reverse("entry-detail", args=[entry.pk]),
+            {"family_name": "Edited"},
+            format="json",
+        )
+        create_response = self.client.post(
+            reverse("entry-list-create", args=[timesheet.pk]),
+            {
+                "work_date": str(self.week_start),
+                "family_name": "Late Family",
+                "start_time": "09:00:00",
+                "end_time": "11:00:00",
+            },
+            format="json",
+        )
+        signature_response = self.client.post(
+            reverse("entry-signature", args=[entry.pk]),
+            {"image": self.make_signature_base64()},
+            format="json",
+        )
+        submit_response = self.client.post(reverse("timesheet-submit", args=[timesheet.pk]))
+
+        self.assertEqual(patch_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(create_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(signature_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(submit_response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_admin_can_override_submit_and_mark_late(self):
         timesheet = self.create_timesheet(user=self.nanny)

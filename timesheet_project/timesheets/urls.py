@@ -16,6 +16,8 @@ admin_timesheet_pdf = AdminTimesheetViewSet.as_view({"get": "pdf"})
 admin_timesheet_notes = AdminTimesheetViewSet.as_view({"patch": "notes"})
 admin_timesheet_override_submit = AdminTimesheetViewSet.as_view(
     {"post": "override_submit"})
+admin_timesheet_lock_week = AdminTimesheetViewSet.as_view(
+    {"post": "lock_week"})
 
 urlpatterns = [
     path("timesheets/current/", timesheet_current, name="timesheet-current"),
@@ -30,6 +32,8 @@ urlpatterns = [
     path("entries/<int:pk>/signature/",
          SignatureView.as_view(), name="entry-signature"),
     path("admin/timesheets/", admin_timesheet_list, name="admin-timesheet-list"),
+    path("admin/timesheets/weeks/lock/",
+         admin_timesheet_lock_week, name="admin-timesheet-lock-week"),
     path("admin/timesheets/<int:pk>/", admin_timesheet_detail,
          name="admin-timesheet-detail"),
     path("admin/timesheets/<int:pk>/pdf/",

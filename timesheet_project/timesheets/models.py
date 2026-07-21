@@ -47,6 +47,26 @@ class WeeklyTimesheet(models.Model):
         }
 
 
+class TimesheetWeekLock(models.Model):
+    week_start_date = models.DateField(unique=True)
+    week_end_date = models.DateField()
+    locked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="locked_timesheet_weeks",
+    )
+    note = models.TextField(blank=True)
+    locked_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-week_start_date"]
+
+    def __str__(self):
+        return f"Locked week {self.week_start_date} - {self.week_end_date}"
+
+
 class TimeEntry(models.Model):
     class SignatureStatus(models.TextChoices):
         UNSIGNED = "unsigned", "Unsigned"
