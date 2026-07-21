@@ -77,6 +77,7 @@ class TimeEntry(models.Model):
         WeeklyTimesheet, on_delete=models.CASCADE, related_name="entries")
     work_date = models.DateField()
     family_name = models.CharField(max_length=255)
+    family_requested_nanny = models.BooleanField(default=False)
     start_time = models.TimeField()
     end_time = models.TimeField()
     total_hours = models.DecimalField(max_digits=6, decimal_places=2)
