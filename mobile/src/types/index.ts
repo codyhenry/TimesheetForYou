@@ -2,12 +2,16 @@ export interface User {
   id: number;
   name?: string;
   email: string;
-  role: 'nanny' | 'admin';
+  role: 'nanny' | 'office' | 'admin';
   username: string;
   first_name: string;
   last_name: string;
   phone?: string;
+  is_active?: boolean;
   is_staff?: boolean;
+  force_password_change?: boolean;
+  can_access_dashboard?: boolean;
+  can_access_django_admin?: boolean;
 }
 
 export interface FamilyHours {
@@ -81,9 +85,7 @@ export interface WeeklyTimesheet {
   week_start_date: string;
   week_end_date: string;
   status: TimesheetStatus;
-  submitted_at: string | null;
-  pdf_file: string | null;
-  entries?: TimeEntry[];
+  submitted_at?: string;
   total_hours: string;
   signed_entry_count: number;
   unsigned_entry_count: number;
@@ -92,10 +94,10 @@ export interface WeeklyTimesheet {
   lifetime_requested_entry_count: number;
   requests_until_next_incentive: number;
   request_incentive_groups?: RequestIncentiveGroup[];
+  is_late_submission?: boolean;
+  late_submission_note?: string;
   is_week_locked?: boolean;
-  total_hours_by_family: FamilyHours[];
-  created_at?: string;
-  updated_at?: string;
   admin_notes?: string;
-  submission?: TimesheetSubmission | null;
+  entries?: TimeEntry[];
+  submission?: TimesheetSubmission;
 }
