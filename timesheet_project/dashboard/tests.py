@@ -174,3 +174,18 @@ class DashboardFilterTests(TestCase):
         self.assertContains(response, "Requested")
         self.assertContains(response, "Parent asked for extra pickup notes.")
         self.assertContains(response, "Admin Notes")
+
+    def test_saving_admin_notes_redirects_to_timesheet_week(self):
+        previous_week_start = self.current_week_start - timedelta(days=7)
+        timesheet = self.create_submitted_timesheet(self.active_nanny, previous_week_start)
+
+        response = self.client.post(
+            reverse("dashboard-notes", args=[timesheet.id]),
+            {"admin_notes": "Reviewed."},
+        )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('dashboard-index')}?week_start={previous_week_start.isoformat()}",
+            fetch_redirect_response=False,
+        )
