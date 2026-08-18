@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.contrib.auth.decorators import user_passes_test
 from django.db.models import Count, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
@@ -11,7 +12,6 @@ from timesheets.services import (
     filter_submitted_timesheets,
     get_request_incentive_groups_for_timesheet,
     get_timesheet_entry_prefetch,
-    get_timesheet_request_incentive_count,
     get_timesheet_week_range,
 )
 
@@ -159,7 +159,11 @@ def _get_dashboard_indicators(timesheet):
         indicators.append(INDICATOR_DEFINITIONS["unsigned"])
     if timesheet.is_late_submission:
         indicators.append(INDICATOR_DEFINITIONS["late"])
-    if get_timesheet_request_incentive_count(timesheet) > 0:
+
+    incentive_count = getattr(timesheet, "dashboard_request_incentive_count", None)
+    if incentive_count is None:
+        incentive_count = len(get_request_incentive_groups_for_timesheet(timesheet))
+    if incentive_count > 0:
         indicators.append(INDICATOR_DEFINITIONS["incentive"])
     return indicators
 
@@ -179,6 +183,7 @@ def _prepare_dashboard_timesheets(queryset):
                 TimeEntry.SignatureStatus.SIGNATURE_INVALIDATED,
             }
         )
+        incentive_groups = get_request_incentive_groups_for_timesheet(timesheet)
         nanny_name = timesheet.nanny.get_full_name() or timesheet.nanny.username
         timesheet.dashboard_title = f"{nanny_name} — {_format_week_range(timesheet)}"
         timesheet.dashboard_week_label = _format_week_range(timesheet)
@@ -187,20 +192,15 @@ def _prepare_dashboard_timesheets(queryset):
         )
         timesheet.dashboard_signed_entry_count = signed_count
         timesheet.dashboard_unsigned_entry_count = unsigned_count
+        timesheet.dashboard_request_incentive_groups = incentive_groups
+        timesheet.dashboard_request_incentive_count = len(incentive_groups)
         timesheet.dashboard_indicators = _get_dashboard_indicators(timesheet)
-        timesheet.dashboard_request_incentive_groups = get_request_incentive_groups_for_timesheet(timesheet)
     return timesheets
 
 
 @admin_required
 def index(request, timesheet_id=None):
     queryset = _filtered_queryset(request)
-    selected_timesheet = None
-    if timesheet_id:
-        selected_timesheet = get_object_or_404(queryset, pk=timesheet_id)
-    elif request.GET.get("timesheet"):
-        selected_timesheet = get_object_or_404(
-            queryset, pk=request.GET["timesheet"])
 
     stats = {
         "status_counts": _get_status_counts(queryset),
@@ -212,7 +212,6 @@ def index(request, timesheet_id=None):
         "dashboard/index.html",
         {
             "timesheets": _prepare_dashboard_timesheets(queryset),
-            "selected_timesheet": selected_timesheet,
             "stats": stats,
             "filters": _get_filter_params(request),
             "filter_options": _get_filter_options(request),
@@ -227,4 +226,6 @@ def update_notes(request, timesheet_id):
     if request.method == "POST":
         timesheet.admin_notes = request.POST.get("admin_notes", "")
         timesheet.save(update_fields=["admin_notes", "updated_at"])
-    return redirect("dashboard-index")
+
+    dashboard_url = reverse("dashboard-index")
+    return redirect(f"{dashboard_url}?week_start={timesheet.week_start_date.isoformat()}")
