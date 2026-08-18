@@ -11,13 +11,20 @@ class RoleAccessModelTests(TestCase):
         office = User.objects.create_user(username="office", role=User.Role.OFFICE)
         admin = User.objects.create_user(username="admin", role=User.Role.ADMIN)
         staff = User.objects.create_user(username="staff", is_staff=True)
+        superuser_without_staff = User.objects.create_user(
+            username="superuser-without-staff",
+            is_superuser=True,
+            is_staff=False,
+        )
 
         self.assertTrue(office.can_access_dashboard)
         self.assertTrue(admin.can_access_dashboard)
         self.assertTrue(staff.can_access_dashboard)
+        self.assertTrue(superuser_without_staff.can_access_dashboard)
         self.assertFalse(office.can_access_django_admin)
         self.assertFalse(admin.can_access_django_admin)
         self.assertTrue(staff.can_access_django_admin)
+        self.assertFalse(superuser_without_staff.can_access_django_admin)
 
     def test_nanny_and_inactive_users_cannot_access_dashboard(self):
         nanny = User.objects.create_user(username="nanny", role=User.Role.NANNY)
