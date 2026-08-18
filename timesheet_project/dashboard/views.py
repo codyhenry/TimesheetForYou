@@ -3,10 +3,17 @@ from decimal import Decimal
 from django.contrib.auth.decorators import user_passes_test
 from django.db.models import Count, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from accounts.models import User
-from timesheets.models import WeeklyTimesheet
-from timesheets.services import filter_submitted_timesheets, get_timesheet_entry_prefetch
+from timesheets.models import TimeEntry, WeeklyTimesheet
+from timesheets.services import (
+    filter_submitted_timesheets,
+    get_request_incentive_groups_for_timesheet,
+    get_timesheet_entry_prefetch,
+    get_timesheet_request_incentive_count,
+    get_timesheet_week_range,
+)
 
 
 admin_required = user_passes_test(
@@ -15,14 +22,47 @@ admin_required = user_passes_test(
 )
 
 
+INDICATOR_DEFINITIONS = {
+    "unsigned": {
+        "icon": "⚠️",
+        "label": "Unsigned entries",
+        "tooltip": "Submitted with unsigned or invalidated entries.",
+    },
+    "late": {
+        "icon": "⏰",
+        "label": "Late submission",
+        "tooltip": "Submitted after the Saturday noon deadline.",
+    },
+    "incentive": {
+        "icon": "🎁",
+        "label": "Request incentive",
+        "tooltip": "This timesheet contains a 5-request incentive milestone.",
+    },
+}
+
+
 def _submitted_timesheet_queryset():
     return WeeklyTimesheet.objects.filter(submission__isnull=False).select_related(
         "nanny", "submission"
     ).prefetch_related(get_timesheet_entry_prefetch())
 
 
+def _current_week_start():
+    week_start, _ = get_timesheet_week_range(timezone.localdate())
+    return week_start
+
+
+def _get_filter_params(request):
+    params = request.GET.copy()
+    if "week_start" not in request.GET:
+        params["week_start"] = _current_week_start().isoformat()
+    return params
+
+
 def _filtered_queryset(request):
-    return filter_submitted_timesheets(_submitted_timesheet_queryset(), request.GET)
+    return filter_submitted_timesheets(
+        _submitted_timesheet_queryset(), _get_filter_params(request)
+    )
 
 
 def _get_nanny_options(request):
@@ -53,13 +93,27 @@ def _format_short_date(value):
     return f"{value.month}.{value.day}.{value.year % 100:02d}"
 
 
+def _format_week_range(timesheet):
+    return f"{_format_short_date(timesheet.week_start_date)} - {_format_short_date(timesheet.week_end_date)}"
+
+
 def _get_week_options():
-    week_rows = (
+    week_rows = list(
         _submitted_timesheet_queryset()
         .values("week_start_date", "week_end_date")
         .distinct()
         .order_by("-week_start_date")
     )
+    current_week_start = _current_week_start()
+    if not any(row["week_start_date"] == current_week_start for row in week_rows):
+        current_start, current_end = get_timesheet_week_range(current_week_start)
+        week_rows.insert(
+            0,
+            {
+                "week_start_date": current_start,
+                "week_end_date": current_end,
+            },
+        )
     return [
         {
             "value": row["week_start_date"].isoformat(),
@@ -95,6 +149,39 @@ def _get_filter_options(request):
     }
 
 
+def _has_unsigned_entries(timesheet):
+    return any(
+        entry.signature_status
+        in {
+            TimeEntry.SignatureStatus.UNSIGNED,
+            TimeEntry.SignatureStatus.SIGNATURE_INVALIDATED,
+        }
+        for entry in timesheet.entries.all()
+    )
+
+
+def _get_dashboard_indicators(timesheet):
+    indicators = []
+    if _has_unsigned_entries(timesheet):
+        indicators.append(INDICATOR_DEFINITIONS["unsigned"])
+    if timesheet.is_late_submission:
+        indicators.append(INDICATOR_DEFINITIONS["late"])
+    if get_timesheet_request_incentive_count(timesheet) > 0:
+        indicators.append(INDICATOR_DEFINITIONS["incentive"])
+    return indicators
+
+
+def _prepare_dashboard_timesheets(queryset):
+    timesheets = list(queryset)
+    for timesheet in timesheets:
+        nanny_name = timesheet.nanny.get_full_name() or timesheet.nanny.username
+        timesheet.dashboard_title = f"{nanny_name} — {_format_week_range(timesheet)}"
+        timesheet.dashboard_week_label = _format_week_range(timesheet)
+        timesheet.dashboard_indicators = _get_dashboard_indicators(timesheet)
+        timesheet.dashboard_request_incentive_groups = get_request_incentive_groups_for_timesheet(timesheet)
+    return timesheets
+
+
 @admin_required
 def index(request, timesheet_id=None):
     queryset = _filtered_queryset(request)
@@ -114,10 +201,10 @@ def index(request, timesheet_id=None):
         request,
         "dashboard/index.html",
         {
-            "timesheets": queryset,
+            "timesheets": _prepare_dashboard_timesheets(queryset),
             "selected_timesheet": selected_timesheet,
             "stats": stats,
-            "filters": request.GET,
+            "filters": _get_filter_params(request),
             "filter_options": _get_filter_options(request),
         },
     )
@@ -130,4 +217,4 @@ def update_notes(request, timesheet_id):
     if request.method == "POST":
         timesheet.admin_notes = request.POST.get("admin_notes", "")
         timesheet.save(update_fields=["admin_notes", "updated_at"])
-    return redirect("dashboard-detail", timesheet_id=timesheet_id)
+    return redirect("dashboard-index")
