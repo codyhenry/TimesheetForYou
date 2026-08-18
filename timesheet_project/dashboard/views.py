@@ -150,14 +150,7 @@ def _get_filter_options(request):
 
 
 def _has_unsigned_entries(timesheet):
-    return any(
-        entry.signature_status
-        in {
-            TimeEntry.SignatureStatus.UNSIGNED,
-            TimeEntry.SignatureStatus.SIGNATURE_INVALIDATED,
-        }
-        for entry in timesheet.entries.all()
-    )
+    return timesheet.dashboard_unsigned_entry_count > 0
 
 
 def _get_dashboard_indicators(timesheet):
@@ -174,9 +167,26 @@ def _get_dashboard_indicators(timesheet):
 def _prepare_dashboard_timesheets(queryset):
     timesheets = list(queryset)
     for timesheet in timesheets:
+        entries = list(timesheet.entries.all())
+        signed_count = sum(
+            1 for entry in entries if entry.signature_status == TimeEntry.SignatureStatus.SIGNED
+        )
+        unsigned_count = sum(
+            1
+            for entry in entries
+            if entry.signature_status in {
+                TimeEntry.SignatureStatus.UNSIGNED,
+                TimeEntry.SignatureStatus.SIGNATURE_INVALIDATED,
+            }
+        )
         nanny_name = timesheet.nanny.get_full_name() or timesheet.nanny.username
         timesheet.dashboard_title = f"{nanny_name} — {_format_week_range(timesheet)}"
         timesheet.dashboard_week_label = _format_week_range(timesheet)
+        timesheet.dashboard_total_hours = sum(
+            (entry.total_hours for entry in entries), Decimal("0.00")
+        )
+        timesheet.dashboard_signed_entry_count = signed_count
+        timesheet.dashboard_unsigned_entry_count = unsigned_count
         timesheet.dashboard_indicators = _get_dashboard_indicators(timesheet)
         timesheet.dashboard_request_incentive_groups = get_request_incentive_groups_for_timesheet(timesheet)
     return timesheets
