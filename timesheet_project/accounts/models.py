@@ -22,7 +22,7 @@ class User(AbstractUser):
 
     @property
     def can_access_django_admin(self):
-        return self.is_active and (self.is_staff or self.is_superuser)
+        return self.is_active and self.is_staff
 
     def __str__(self):
         return f"{self.get_full_name() or self.username} ({self.role})"
