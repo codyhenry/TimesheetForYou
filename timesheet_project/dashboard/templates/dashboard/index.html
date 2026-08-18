@@ -4,20 +4,42 @@
     <meta charset="utf-8">
     <title>Timesheet Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 24px; }
+        body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
         table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
-        th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+        th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; vertical-align: top; }
         th { background: #f3f4f6; }
         label { display: block; font-weight: 700; font-size: 0.85em; margin-bottom: 4px; }
         input, select { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; }
         button, .button-link { display: inline-block; padding: 8px 12px; border: 1px solid #1f2937; border-radius: 6px; background: #1f2937; color: #fff; text-decoration: none; cursor: pointer; }
-        .stats { display: flex; gap: 24px; margin-bottom: 24px; }
-        .card { padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 8px; }
-        textarea { width: 100%; min-height: 120px; }
+        .stats { display: flex; gap: 24px; margin-bottom: 24px; flex-wrap: wrap; }
+        .card { padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; }
+        textarea { width: 100%; min-height: 120px; box-sizing: border-box; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; }
         .filters { margin-bottom: 24px; display: grid; gap: 12px; grid-template-columns: repeat(5, minmax(140px, 1fr)); align-items: end; }
         .muted { color: #6b7280; font-size: 0.9em; }
         .filter-actions { display: flex; gap: 8px; align-items: center; }
         .secondary-link { color: #374151; text-decoration: none; font-size: 0.9em; }
+        .timesheet-title { font-weight: 700; }
+        .indicator-list { display: flex; gap: 6px; flex-wrap: wrap; }
+        .indicator { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid #d1d5db; border-radius: 999px; background: #f9fafb; font-size: 0.85em; }
+        .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(17, 24, 39, 0.65); padding: 32px; overflow-y: auto; z-index: 1000; }
+        .modal-backdrop.is-open { display: block; }
+        .modal { background: #fff; max-width: 1100px; margin: 0 auto; border-radius: 10px; padding: 24px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); }
+        .modal-header { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 16px; }
+        .modal-title { margin: 0 0 4px; }
+        .modal-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .modal-close { background: #fff; color: #1f2937; }
+        .detail-grid { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .detail-label { display: block; color: #6b7280; font-size: 0.8em; margin-bottom: 2px; }
+        .detail-value { font-weight: 700; }
+        .section-heading { margin: 24px 0 8px; }
+        .notes-cell { max-width: 260px; white-space: pre-wrap; }
+        .requested-marker { color: #92400e; font-weight: 700; }
+        .incentive-card { border: 1px solid #f59e0b; background: #fffbeb; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+        .empty-indicators { color: #6b7280; }
+        @media (max-width: 900px) {
+            .filters, .detail-grid { grid-template-columns: 1fr; }
+            .modal-backdrop { padding: 12px; }
+        }
     </style>
 </head>
 <body>
@@ -42,7 +64,7 @@
         <div>
             <label for="week_start">Week</label>
             <select id="week_start" name="week_start">
-                <option value="">All weeks</option>
+                <option value="" {% if filters.week_start == "" %}selected{% endif %}>All weeks</option>
                 {% for week in filter_options.weeks %}
                     <option value="{{ week.value }}" {% if filters.week_start == week.value %}selected{% endif %}>{{ week.label }}</option>
                 {% endfor %}
@@ -87,17 +109,17 @@
 
         <div class="filter-actions">
             <button type="submit">Filter</button>
-            <a class="secondary-link" href="{% url 'dashboard-index' %}">Clear</a>
+            <a class="secondary-link" href="{% url 'dashboard-index' %}">Current week</a>
+            <a class="secondary-link" href="{% url 'dashboard-index' %}?week_start=">All weeks</a>
         </div>
     </form>
 
     <table>
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Nanny</th>
-                <th>Week</th>
+                <th>Timesheet</th>
                 <th>Status</th>
+                <th>Indicators</th>
                 <th>Submitted</th>
                 <th>View</th>
             </tr>
@@ -105,10 +127,25 @@
         <tbody>
             {% for timesheet in timesheets %}
                 <tr>
-                    <td>{{ timesheet.id }}</td>
-                    <td>{{ timesheet.nanny.get_full_name|default:timesheet.nanny.username }}</td>
-                    <td>{{ timesheet.week_start_date }} → {{ timesheet.week_end_date }}</td>
+                    <td>
+                        <div class="timesheet-title">{{ timesheet.dashboard_title }}</div>
+                        <div class="muted">{{ timesheet.total_hours }}h total</div>
+                    </td>
                     <td>{{ timesheet.get_status_display }}</td>
+                    <td>
+                        {% if timesheet.dashboard_indicators %}
+                            <div class="indicator-list">
+                                {% for indicator in timesheet.dashboard_indicators %}
+                                    <span class="indicator" title="{{ indicator.tooltip }}" aria-label="{{ indicator.label }}">
+                                        <span aria-hidden="true">{{ indicator.icon }}</span>
+                                        {{ indicator.label }}
+                                    </span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <span class="empty-indicators">None</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if timesheet.submitted_at %}
                             <time class="local-datetime" datetime="{{ timesheet.submitted_at|date:'c' }}">
@@ -118,69 +155,193 @@
                             —
                         {% endif %}
                     </td>
-                    <td><a href="{% url 'dashboard-detail' timesheet.id %}">Open</a></td>
+                    <td>
+                        <button type="button" class="open-modal" data-target="timesheet-modal-{{ timesheet.id }}">Open</button>
+                    </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="6">No submitted timesheets found.</td></tr>
+                <tr><td colspan="5">No submitted timesheets found.</td></tr>
             {% endfor %}
         </tbody>
     </table>
 
-    {% if selected_timesheet %}
-        <h2>Timesheet #{{ selected_timesheet.id }}</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Family</th>
-                    <th>Start</th>
-                    <th>End</th>
-                    <th>Hours</th>
-                    <th>Signature Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in selected_timesheet.entries.all %}
-                    <tr>
-                        <td>{{ entry.work_date }}</td>
-                        <td>{{ entry.family_name }}</td>
-                        <td>{{ entry.start_time }}</td>
-                        <td>{{ entry.end_time }}</td>
-                        <td>{{ entry.total_hours }}</td>
-                        <td>{{ entry.get_signature_status_display }}</td>
-                    </tr>
-                {% empty %}
-                    <tr><td colspan="6">No entries</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    {% for timesheet in timesheets %}
+        <div class="modal-backdrop" id="timesheet-modal-{{ timesheet.id }}" aria-hidden="true">
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-{{ timesheet.id }}">
+                <div class="modal-header">
+                    <div>
+                        <h2 id="modal-title-{{ timesheet.id }}" class="modal-title">{{ timesheet.dashboard_title }}</h2>
+                        <div class="indicator-list">
+                            {% for indicator in timesheet.dashboard_indicators %}
+                                <span class="indicator" title="{{ indicator.tooltip }}">
+                                    <span aria-hidden="true">{{ indicator.icon }}</span>
+                                    {{ indicator.label }}
+                                </span>
+                            {% empty %}
+                                <span class="empty-indicators">No indicators</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <a class="button-link" href="{% url 'admin-timesheet-pdf' timesheet.id %}" target="_blank" rel="noopener">View PDF</a>
+                        <button type="button" class="modal-close" data-target="timesheet-modal-{{ timesheet.id }}">Close</button>
+                    </div>
+                </div>
 
-        <form method="post" action="{% url 'dashboard-notes' selected_timesheet.id %}">
-            {% csrf_token %}
-            <label for="admin_notes"><strong>Admin Notes</strong></label>
-            <textarea id="admin_notes" name="admin_notes">{{ selected_timesheet.admin_notes }}</textarea>
-            <button type="submit">Save Notes</button>
-        </form>
-    {% endif %}
+                <div class="detail-grid">
+                    <div><span class="detail-label">Nanny</span><span class="detail-value">{{ timesheet.nanny.get_full_name|default:timesheet.nanny.username }}</span></div>
+                    <div><span class="detail-label">Week</span><span class="detail-value">{{ timesheet.dashboard_week_label }}</span></div>
+                    <div><span class="detail-label">Status</span><span class="detail-value">{{ timesheet.get_status_display }}</span></div>
+                    <div><span class="detail-label">Total Hours</span><span class="detail-value">{{ timesheet.total_hours }}h</span></div>
+                    <div><span class="detail-label">Signed Entries</span><span class="detail-value">{{ timesheet.signed_entry_count }}</span></div>
+                    <div><span class="detail-label">Unsigned Entries</span><span class="detail-value">{{ timesheet.unsigned_entry_count }}</span></div>
+                    <div><span class="detail-label">Late</span><span class="detail-value">{% if timesheet.is_late_submission %}Yes{% else %}No{% endif %}</span></div>
+                    <div>
+                        <span class="detail-label">Submitted</span>
+                        <span class="detail-value">
+                            {% if timesheet.submitted_at %}
+                                <time class="local-datetime" datetime="{{ timesheet.submitted_at|date:'c' }}">{{ timesheet.submitted_at|date:'c' }}</time>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <h3 class="section-heading">Entries</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Family</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Hours</th>
+                            <th>Requested</th>
+                            <th>Notes</th>
+                            <th>Signature Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in timesheet.entries.all %}
+                            <tr>
+                                <td>{{ entry.work_date }}</td>
+                                <td>{{ entry.family_name }}</td>
+                                <td>{{ entry.start_time }}</td>
+                                <td>{{ entry.end_time }}</td>
+                                <td>{{ entry.total_hours }}</td>
+                                <td>{% if entry.family_requested_nanny %}<span class="requested-marker">Yes</span>{% else %}No{% endif %}</td>
+                                <td class="notes-cell">{{ entry.notes|default:"—" }}</td>
+                                <td>{{ entry.get_signature_status_display }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="8">No entries</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                {% if timesheet.dashboard_request_incentive_groups %}
+                    <h3 class="section-heading">Request Incentive Milestones</h3>
+                    {% for group in timesheet.dashboard_request_incentive_groups %}
+                        <div class="incentive-card">
+                            <strong>Incentive {{ group.incentive_number }}</strong>
+                            <p class="muted">Earned on lifetime request #{{ group.milestone_request_number }}.</p>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Request #</th>
+                                        <th>Work Date</th>
+                                        <th>Family</th>
+                                        <th>Week</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for request_entry in group.entries %}
+                                        <tr>
+                                            <td>{{ request_entry.request_number }}</td>
+                                            <td>{{ request_entry.work_date }}</td>
+                                            <td>{{ request_entry.family_name }}</td>
+                                            <td>{{ request_entry.week_start_date }} → {{ request_entry.week_end_date }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <form method="post" action="{% url 'dashboard-notes' timesheet.id %}">
+                    {% csrf_token %}
+                    <label for="admin_notes_{{ timesheet.id }}"><strong>Admin Notes</strong></label>
+                    <textarea id="admin_notes_{{ timesheet.id }}" name="admin_notes">{{ timesheet.admin_notes }}</textarea>
+                    <button type="submit">Save Notes</button>
+                </form>
+            </div>
+        </div>
+    {% endfor %}
 
     <script>
-        document.querySelectorAll(".local-datetime").forEach((element) => {
-            const value = element.getAttribute("datetime");
-            if (!value) {
+        function localizeTimestamps(root) {
+            root.querySelectorAll(".local-datetime").forEach((element) => {
+                const value = element.getAttribute("datetime");
+                if (!value) {
+                    return;
+                }
+
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) {
+                    return;
+                }
+
+                element.textContent = new Intl.DateTimeFormat(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                }).format(date);
+                element.title = value;
+            });
+        }
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) {
                 return;
             }
+            modal.classList.add("is-open");
+            modal.setAttribute("aria-hidden", "false");
+        }
 
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) {
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) {
                 return;
             }
+            modal.classList.remove("is-open");
+            modal.setAttribute("aria-hidden", "true");
+        }
 
-            element.textContent = new Intl.DateTimeFormat(undefined, {
-                dateStyle: "medium",
-                timeStyle: "short",
-            }).format(date);
-            element.title = value;
+        document.querySelectorAll(".open-modal").forEach((button) => {
+            button.addEventListener("click", () => openModal(button.dataset.target));
         });
+
+        document.querySelectorAll(".modal-close").forEach((button) => {
+            button.addEventListener("click", () => closeModal(button.dataset.target));
+        });
+
+        document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
+            backdrop.addEventListener("click", (event) => {
+                if (event.target === backdrop) {
+                    closeModal(backdrop.id);
+                }
+            });
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                document.querySelectorAll(".modal-backdrop.is-open").forEach((modal) => closeModal(modal.id));
+            }
+        });
+
+        localizeTimestamps(document);
     </script>
 </body>
 </html>
