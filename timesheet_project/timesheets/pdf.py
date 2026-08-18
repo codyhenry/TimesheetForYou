@@ -1,6 +1,7 @@
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER
@@ -11,13 +12,17 @@ from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Tabl
 from .models import TimeEntry
 
 
+def _paragraph(value, styles):
+    return Paragraph(escape(str(value or "—")), styles["BodyText"])
+
+
 def _signature_cell(entry, styles):
     if entry.signature_status == TimeEntry.SignatureStatus.SIGNED and hasattr(entry, "parent_signature"):
         image_field = entry.parent_signature.image
         try:
             image_path = Path(image_field.path)
             if image_path.exists():
-                return Image(str(image_path), width=1.3 * inch, height=0.45 * inch)
+                return Image(str(image_path), width=1.2 * inch, height=0.4 * inch)
         except Exception:
             pass
         return Paragraph("SIGNED", styles["BodyText"])
@@ -41,7 +46,7 @@ def render_timesheet_pdf(timesheet):
         Paragraph("TimesheetForYou", styles["Title"]),
         Spacer(1, 0.15 * inch),
         Paragraph(
-            f"Nanny: {timesheet.nanny.get_full_name() or timesheet.nanny.username}", styles["Normal"]),
+            f"Nanny: {escape(timesheet.nanny.get_full_name() or timesheet.nanny.username)}", styles["Normal"]),
         Paragraph(
             f"Week: {timesheet.week_start_date} to {timesheet.week_end_date}", styles["Normal"]),
         Paragraph(
@@ -52,29 +57,62 @@ def render_timesheet_pdf(timesheet):
     ]
 
     table_data: list[list[object]] = [
-        ["Date", "Family", "Start", "End", "Hours", "Parent Signature"]]
+        [
+            "Date",
+            "Family",
+            "Start",
+            "End",
+            "Hours",
+            "Requested",
+            "Notes",
+            "Parent Signature",
+        ]
+    ]
     if entries:
         for entry in entries:
             table_data.append([
                 str(entry.work_date),
-                entry.family_name,
+                _paragraph(entry.family_name, styles),
                 entry.start_time.strftime("%H:%M"),
                 entry.end_time.strftime("%H:%M"),
                 str(entry.total_hours),
+                "Yes" if entry.family_requested_nanny else "No",
+                _paragraph(entry.notes, styles),
                 _signature_cell(entry, styles),
             ])
     else:
-        table_data.append(["-", "No entries", "-", "-", "0.00",
-                          Paragraph('<font color="red">UNSIGNED</font>', styles["BodyText"])])
+        table_data.append([
+            "-",
+            "No entries",
+            "-",
+            "-",
+            "0.00",
+            "No",
+            "—",
+            Paragraph('<font color="red">UNSIGNED</font>', styles["BodyText"]),
+        ])
 
-    table = Table(table_data, colWidths=[
-                  0.9 * inch, 1.8 * inch, 0.8 * inch, 0.8 * inch, 0.7 * inch, 2.1 * inch])
+    table = Table(
+        table_data,
+        colWidths=[
+            0.72 * inch,
+            1.0 * inch,
+            0.52 * inch,
+            0.52 * inch,
+            0.55 * inch,
+            0.72 * inch,
+            1.45 * inch,
+            1.55 * inch,
+        ],
+        repeatRows=1,
+    )
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("PADDING", (0, 0), (-1, -1), 6),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("PADDING", (0, 0), (-1, -1), 4),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
     ]))
     story.extend([table, Spacer(1, 0.2 * inch)])
 
@@ -82,7 +120,7 @@ def render_timesheet_pdf(timesheet):
         ["Total Hours", str(total_hours)],
         ["Signed Entries", str(signed_count)],
         ["Unsigned Entries", str(unsigned_count)],
-        ["Status", timesheet.status],
+        ["Status", timesheet.get_status_display()],
     ]
     summary_table = Table(summary_data, colWidths=[2.0 * inch, 2.2 * inch])
     summary_table.setStyle(TableStyle([
