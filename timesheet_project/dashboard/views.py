@@ -17,8 +17,7 @@ from timesheets.services import (
 
 
 admin_required = user_passes_test(
-    lambda user: user.is_authenticated and (
-        getattr(user, "role", None) == "admin" or getattr(user, "is_staff", False))
+    lambda user: user.is_authenticated and getattr(user, "can_access_dashboard", False)
 )
 
 
