@@ -31,6 +31,32 @@ class RoleAccessModelTests(TestCase):
         self.assertFalse(inactive_admin.can_access_dashboard)
 
 
+class DashboardBrowserAccessTests(TestCase):
+    def test_office_user_can_open_dashboard_page(self):
+        office = User.objects.create_user(
+            username="office",
+            password="StrongTestPass123!",
+            role=User.Role.OFFICE,
+        )
+        self.client.force_login(office)
+
+        response = self.client.get(reverse("dashboard-index"))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_nanny_user_is_redirected_from_dashboard_page(self):
+        nanny = User.objects.create_user(
+            username="nanny",
+            password="StrongTestPass123!",
+            role=User.Role.NANNY,
+        )
+        self.client.force_login(nanny)
+
+        response = self.client.get(reverse("dashboard-index"))
+
+        self.assertEqual(response.status_code, 302)
+
+
 class RoleAccessAPITests(APITestCase):
     def setUp(self):
         self.nanny = User.objects.create_user(
