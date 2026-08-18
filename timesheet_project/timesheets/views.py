@@ -29,6 +29,7 @@ from .serializers import (
 from .services import (
     ensure_timesheet_week_unlocked,
     filter_submitted_timesheets,
+    format_timesheet_pdf_filename,
     generate_timesheet_pdf,
     get_or_create_current_week_timesheet,
     get_timesheet_entry_prefetch,
@@ -41,6 +42,15 @@ from .services import (
 
 def _is_truthy(value):
     return value in {True, "true", "True", "1", 1}
+
+
+def _pdf_file_response(timesheet):
+    filename = format_timesheet_pdf_filename(timesheet)
+    return FileResponse(
+        timesheet.pdf_file.open("rb"),
+        content_type="application/pdf",
+        filename=filename,
+    )
 
 
 class TimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
@@ -72,12 +82,13 @@ class TimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewset
         timesheet = self.get_object()
         if timesheet.pdf_file:
             try:
-                return FileResponse(timesheet.pdf_file.open("rb"), content_type="application/pdf")
+                return _pdf_file_response(timesheet)
             except FileNotFoundError:
                 pass
         pdf_bytes = generate_timesheet_pdf(timesheet)
+        filename = format_timesheet_pdf_filename(timesheet)
         response = HttpResponse(pdf_bytes, content_type="application/pdf")
-        response["Content-Disposition"] = f'inline; filename="timesheet-{timesheet.pk}.pdf"'
+        response["Content-Disposition"] = f'inline; filename="{filename}"'
         return response
 
 
@@ -207,7 +218,7 @@ class AdminTimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vi
         timesheet = self.get_object()
         if not timesheet.pdf_file:
             raise Http404("No PDF available for this timesheet.")
-        return FileResponse(timesheet.pdf_file.open("rb"), content_type="application/pdf")
+        return _pdf_file_response(timesheet)
 
     @action(detail=True, methods=["patch"], url_path="notes")
     def notes(self, request, pk=None):
@@ -220,32 +231,23 @@ class AdminTimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vi
 
     @action(detail=True, methods=["post"], url_path="override-submit")
     def override_submit(self, request, pk=None):
-        timesheet = get_object_or_404(
-            WeeklyTimesheet.objects.select_related(
-                "nanny", "submission").prefetch_related(get_timesheet_entry_prefetch()),
-            pk=pk,
-        )
-        late_note = str(request.data.get("late_submission_note", "")).strip()
-        if not late_note:
-            late_note = "Submitted after deadline by admin override."
-
+        timesheet = self.get_object()
+        note = request.data.get("late_submission_note", "")
         timesheet = submit_timesheet(
             timesheet,
             submitted_by=request.user,
             force_late=True,
-            late_submission_note=late_note,
+            late_submission_note=note,
         )
         return Response(AdminTimesheetDetailSerializer(timesheet).data)
 
-    @action(detail=False, methods=["post"], url_path="lock-week")
+    @action(detail=False, methods=["post"], url_path="weeks/lock")
     def lock_week(self, request):
         week_start = parse_date(str(request.data.get("week_start_date", "")))
-        if week_start is None:
-            raise ValidationError({"week_start_date": "A valid week_start_date is required."})
-
-        week_lock = lock_timesheet_week(
-            week_start,
-            locked_by=request.user,
-            note=str(request.data.get("note", "")).strip(),
-        )
-        return Response(TimesheetWeekLockSerializer(week_lock).data, status=status.HTTP_201_CREATED)
+        if not week_start:
+            raise ValidationError(
+                {"week_start_date": "A valid week_start_date is required."})
+        note = request.data.get("note", "")
+        week_lock = lock_timesheet_week(week_start, locked_by=request.user, note=note)
+        serializer = TimesheetWeekLockSerializer(week_lock)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
