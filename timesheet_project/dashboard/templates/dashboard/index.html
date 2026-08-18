@@ -129,7 +129,7 @@
                 <tr>
                     <td>
                         <div class="timesheet-title">{{ timesheet.dashboard_title }}</div>
-                        <div class="muted">{{ timesheet.total_hours }}h total</div>
+                        <div class="muted">{{ timesheet.dashboard_total_hours }}h total</div>
                     </td>
                     <td>{{ timesheet.get_status_display }}</td>
                     <td>
@@ -192,9 +192,9 @@
                     <div><span class="detail-label">Nanny</span><span class="detail-value">{{ timesheet.nanny.get_full_name|default:timesheet.nanny.username }}</span></div>
                     <div><span class="detail-label">Week</span><span class="detail-value">{{ timesheet.dashboard_week_label }}</span></div>
                     <div><span class="detail-label">Status</span><span class="detail-value">{{ timesheet.get_status_display }}</span></div>
-                    <div><span class="detail-label">Total Hours</span><span class="detail-value">{{ timesheet.total_hours }}h</span></div>
-                    <div><span class="detail-label">Signed Entries</span><span class="detail-value">{{ timesheet.signed_entry_count }}</span></div>
-                    <div><span class="detail-label">Unsigned Entries</span><span class="detail-value">{{ timesheet.unsigned_entry_count }}</span></div>
+                    <div><span class="detail-label">Total Hours</span><span class="detail-value">{{ timesheet.dashboard_total_hours }}h</span></div>
+                    <div><span class="detail-label">Signed Entries</span><span class="detail-value">{{ timesheet.dashboard_signed_entry_count }}</span></div>
+                    <div><span class="detail-label">Unsigned Entries</span><span class="detail-value">{{ timesheet.dashboard_unsigned_entry_count }}</span></div>
                     <div><span class="detail-label">Late</span><span class="detail-value">{% if timesheet.is_late_submission %}Yes{% else %}No{% endif %}</span></div>
                     <div>
                         <span class="detail-label">Submitted</span>
