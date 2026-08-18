@@ -5,6 +5,7 @@
     <title>Timesheet Dashboard</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+        body.modal-open { overflow: hidden; }
         table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
         th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; vertical-align: top; }
         th { background: #f3f4f6; }
@@ -281,6 +282,8 @@
     {% endfor %}
 
     <script>
+        let lastFocusedElement = null;
+
         function localizeTimestamps(root) {
             root.querySelectorAll(".local-datetime").forEach((element) => {
                 const value = element.getAttribute("datetime");
@@ -306,8 +309,15 @@
             if (!modal) {
                 return;
             }
+            lastFocusedElement = document.activeElement;
             modal.classList.add("is-open");
             modal.setAttribute("aria-hidden", "false");
+            document.body.classList.add("modal-open");
+
+            const closeButton = modal.querySelector(".modal-close");
+            if (closeButton) {
+                closeButton.focus();
+            }
         }
 
         function closeModal(id) {
@@ -317,6 +327,13 @@
             }
             modal.classList.remove("is-open");
             modal.setAttribute("aria-hidden", "true");
+            if (!document.querySelector(".modal-backdrop.is-open")) {
+                document.body.classList.remove("modal-open");
+            }
+            if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+                lastFocusedElement.focus();
+            }
+            lastFocusedElement = null;
         }
 
         document.querySelectorAll(".open-modal").forEach((button) => {
