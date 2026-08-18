@@ -44,6 +44,13 @@ def _is_truthy(value):
     return value in {True, "true", "True", "1", 1}
 
 
+def _clean_request_text(value, default=""):
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text or default
+
+
 def _pdf_file_response(timesheet):
     filename = format_timesheet_pdf_filename(timesheet)
     return FileResponse(
@@ -232,7 +239,10 @@ class AdminTimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vi
     @action(detail=True, methods=["post"], url_path="override-submit")
     def override_submit(self, request, pk=None):
         timesheet = self.get_object()
-        note = request.data.get("late_submission_note", "")
+        note = _clean_request_text(
+            request.data.get("late_submission_note"),
+            default="Admin override submission.",
+        )
         timesheet = submit_timesheet(
             timesheet,
             submitted_by=request.user,
@@ -247,7 +257,7 @@ class AdminTimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, vi
         if not week_start:
             raise ValidationError(
                 {"week_start_date": "A valid week_start_date is required."})
-        note = request.data.get("note", "")
+        note = _clean_request_text(request.data.get("note"))
         week_lock = lock_timesheet_week(week_start, locked_by=request.user, note=note)
         serializer = TimesheetWeekLockSerializer(week_lock)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
