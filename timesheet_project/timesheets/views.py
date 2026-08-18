@@ -13,7 +13,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.permissions import IsAdmin, IsNanny
+from accounts.permissions import IsDashboardUser, IsNanny
 from .permissions import IsEntryOwner, IsTimesheetOwner
 from .models import ParentSignature, TimeEntry, WeeklyTimesheet
 from .serializers import (
@@ -44,13 +44,6 @@ def _is_truthy(value):
     return value in {True, "true", "True", "1", 1}
 
 
-def _clean_request_text(value, default=""):
-    if value is None:
-        return default
-    text = str(value).strip()
-    return text or default
-
-
 def _pdf_file_response(timesheet):
     filename = format_timesheet_pdf_filename(timesheet)
     return FileResponse(
@@ -58,6 +51,11 @@ def _pdf_file_response(timesheet):
         content_type="application/pdf",
         filename=filename,
     )
+
+
+def _clean_request_text(value, default=""):
+    text = "" if value is None else str(value).strip()
+    return text or default
 
 
 class TimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
@@ -207,7 +205,7 @@ class SignatureView(APIView):
 
 
 class AdminTimesheetViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsDashboardUser]
 
     def get_queryset(self):
         queryset = WeeklyTimesheet.objects.filter(submission__isnull=False).select_related(
