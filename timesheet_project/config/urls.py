@@ -4,7 +4,12 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from . import views
+
+handler404 = "config.views.custom_404"
+
 urlpatterns = [
+    path("", views.root_redirect, name="root-redirect"),
     path("django-admin/", admin.site.urls),
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
