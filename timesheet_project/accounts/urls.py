@@ -1,12 +1,16 @@
 from django.urls import path
 
-from .views import CurrentUserView, NannyManagementViewSet
+from .views import CurrentUserView, DashboardUserManagementViewSet, NannyManagementViewSet
 
 nanny_list = NannyManagementViewSet.as_view({"get": "list", "post": "create"})
 nanny_detail = NannyManagementViewSet.as_view({"patch": "partial_update"})
+dashboard_user_list = DashboardUserManagementViewSet.as_view({"get": "list", "post": "create"})
+dashboard_user_detail = DashboardUserManagementViewSet.as_view({"patch": "partial_update"})
 
 urlpatterns = [
     path("auth/me/", CurrentUserView.as_view(), name="current-user"),
     path("admin/nannies/", nanny_list, name="admin-nanny-list"),
     path("admin/nannies/<int:pk>/", nanny_detail, name="admin-nanny-detail"),
+    path("admin/dashboard-users/", dashboard_user_list, name="admin-dashboard-user-list"),
+    path("admin/dashboard-users/<int:pk>/", dashboard_user_detail, name="admin-dashboard-user-detail"),
 ]
