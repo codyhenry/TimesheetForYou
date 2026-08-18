@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, time as dt_time
 from decimal import Decimal, ROUND_CEILING
+import re
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -20,6 +21,7 @@ SATURDAY_WEEKDAY = 5
 FRIDAY_WEEKDAY = 4
 QUARTER_HOUR = Decimal("0.25")
 REQUESTS_PER_INCENTIVE = 5
+FILENAME_UNSAFE_CHARS = re.compile(r'[^A-Za-z0-9,._ -]+')
 
 
 def get_timesheet_week_range(for_date):
@@ -27,6 +29,26 @@ def get_timesheet_week_range(for_date):
     week_start = for_date - timedelta(days=(for_date.weekday() - SATURDAY_WEEKDAY) % 7)
     week_end = week_start + timedelta(days=6)
     return week_start, week_end
+
+
+def _format_short_date_for_filename(value):
+    return f"{value.month}.{value.day}.{value.year % 100:02d}"
+
+
+def _safe_pdf_filename_part(value):
+    cleaned = FILENAME_UNSAFE_CHARS.sub("", str(value or "")).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned or "Unknown"
+
+
+def format_timesheet_pdf_filename(timesheet):
+    first_name = _safe_pdf_filename_part(timesheet.nanny.first_name or timesheet.nanny.username)
+    last_name = _safe_pdf_filename_part(timesheet.nanny.last_name or timesheet.nanny.username)
+    week_range = (
+        f"{_format_short_date_for_filename(timesheet.week_start_date)}-"
+        f"{_format_short_date_for_filename(timesheet.week_end_date)}"
+    )
+    return f"{last_name},{first_name} {week_range}.pdf"
 
 
 def get_or_create_current_week_timesheet(user):
@@ -331,7 +353,7 @@ def submit_timesheet(timesheet, submitted_by=None, force_late=False, late_submis
     timesheet.is_late_submission = is_late
     timesheet.late_submission_note = late_submission_note or ""
     pdf_bytes = generate_timesheet_pdf(timesheet)
-    file_name = f"timesheet_{timesheet.id}_{timestamp:%Y%m%d%H%M%S}.pdf"
+    file_name = format_timesheet_pdf_filename(timesheet)
     snapshot = _build_submission_snapshot(timesheet, entries, total_hours)
 
     submission = timesheet.submission
