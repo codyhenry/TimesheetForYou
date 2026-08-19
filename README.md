@@ -95,6 +95,47 @@ POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 ```
 
+## Optional S3 Media Storage
+
+Local development uses the filesystem under `timesheet_project/media/` by default.
+
+Set `USE_S3=True` in production to store uploaded parent signatures and generated timesheet PDFs in a private S3 bucket through Django's default file storage.
+
+```env
+USE_S3=True
+AWS_STORAGE_BUCKET_NAME=timesheet-for-you-prod-media
+AWS_S3_REGION_NAME=us-east-1
+AWS_LOCATION=media
+AWS_QUERYSTRING_AUTH=True
+AWS_QUERYSTRING_EXPIRE=3600
+AWS_S3_FILE_OVERWRITE=False
+AWS_S3_CACHE_CONTROL=private, max-age=300
+```
+
+AWS credentials should be provided by the runtime environment, such as an IAM role or the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables. The app only needs object-level access to an existing bucket; it does not create AWS infrastructure at runtime.
+
+Example least-privilege IAM policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TimesheetMediaBucketList",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::timesheet-for-you-prod-media"
+    },
+    {
+      "Sid": "TimesheetMediaObjectAccess",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::timesheet-for-you-prod-media/*"
+    }
+  ]
+}
+```
+
 ## Mobile Setup: React Native / Expo
 
 Open a second terminal from the repo root:
@@ -200,53 +241,3 @@ Terminal 2: mobile
 cd mobile
 npm start
 ```
-
-## Troubleshooting
-
-### The mobile app cannot connect to the API
-
-If testing on a physical phone, do not use `localhost` in `EXPO_PUBLIC_API_URL`. Use your computer's local network IP address:
-
-```env
-EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LOCAL_IP:8000
-```
-
-Also make sure:
-
-- the backend is running with `0.0.0.0:8000`
-- the phone and computer are on the same Wi-Fi network
-- your firewall allows connections to port `8000`
-
-### Login fails with connection errors
-
-Confirm the token endpoint is reachable:
-
-```txt
-http://YOUR_API_HOST:8000/api/token/
-```
-
-### Database errors during startup
-
-Run migrations:
-
-```bash
-cd timesheet_project
-python manage.py migrate
-```
-
-### Static/media files during development
-
-When `DEBUG=True`, Django serves media files from the local `media/` directory.
-
-## MVP Notes
-
-The app is intended to support this workflow:
-
-1. Nanny logs into the mobile app.
-2. Nanny adds time entries for one or more families during the week.
-3. Parent signs individual entries on the nanny's phone.
-4. Nanny submits the weekly timesheet.
-5. Backend generates a PDF.
-6. Admin reviews submitted timesheets and downloads PDFs.
-
-Submitted timesheets are locked. Admins may add or edit internal notes, but submitted time entries, signatures, totals, and PDFs should not be changed for the MVP.
