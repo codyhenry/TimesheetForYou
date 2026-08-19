@@ -22,5 +22,4 @@ class IsAdmin(BasePermission):
         return request.user.is_authenticated and request.user.is_active and (
             getattr(request.user, "role", None) == "admin"
             or getattr(request.user, "is_staff", False)
-            or getattr(request.user, "is_superuser", False)
         )
