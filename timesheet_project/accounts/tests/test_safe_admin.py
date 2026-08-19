@@ -58,6 +58,13 @@ class SafeUserAdminTests(TestCase):
         self.assertNotContains(response, "id_groups")
         self.assertNotContains(response, "id_user_permissions")
 
+    def test_non_superuser_staff_cannot_open_superuser_change_form_directly(self):
+        response = self.client.get(
+            reverse("admin:accounts_user_change", args=[self.developer_superuser.pk])
+        )
+
+        self.assertEqual(response.status_code, 403)
+
     def test_non_superuser_staff_cannot_grant_staff_or_superuser_with_post(self):
         response = self.client.post(
             reverse("admin:accounts_user_change", args=[self.nanny.pk]),
