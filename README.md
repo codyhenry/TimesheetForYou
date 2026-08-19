@@ -241,3 +241,53 @@ Terminal 2: mobile
 cd mobile
 npm start
 ```
+
+## Troubleshooting
+
+### The mobile app cannot connect to the API
+
+If testing on a physical phone, do not use `localhost` in `EXPO_PUBLIC_API_URL`. Use your computer's local network IP address:
+
+```env
+EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LOCAL_IP:8000
+```
+
+Also make sure:
+
+- the backend is running with `0.0.0.0:8000`
+- the phone and computer are on the same Wi-Fi network
+- your firewall allows connections to port `8000`
+
+### Login fails with connection errors
+
+Confirm the token endpoint is reachable:
+
+```txt
+http://YOUR_API_HOST:8000/api/token/
+```
+
+### Database errors during startup
+
+Run migrations:
+
+```bash
+cd timesheet_project
+python manage.py migrate
+```
+
+### Static/media files during development
+
+When `DEBUG=True`, Django serves media files from the local `media/` directory.
+
+## MVP Notes
+
+The app is intended to support this workflow:
+
+1. Nanny logs into the mobile app.
+2. Nanny adds time entries for one or more families during the week.
+3. Parent signs individual entries on the nanny's phone.
+4. Nanny submits the weekly timesheet.
+5. Backend generates a PDF.
+6. Admin reviews submitted timesheets and downloads PDFs.
+
+Submitted timesheets can be edited and resubmitted until an office/admin user locks the week. Admins may add or edit internal notes, and submitted PDFs are replaced on resubmission before the week is locked.
