@@ -16,7 +16,7 @@ from timesheets.services import (
 )
 
 
-admin_required = user_passes_test(
+dashboard_user_required = user_passes_test(
     lambda user: user.is_authenticated and getattr(user, "can_access_dashboard", False)
 )
 
@@ -197,7 +197,7 @@ def _prepare_dashboard_timesheets(queryset):
     return timesheets
 
 
-@admin_required
+@dashboard_user_required
 def index(request, timesheet_id=None):
     queryset = _filtered_queryset(request)
 
@@ -218,7 +218,7 @@ def index(request, timesheet_id=None):
     )
 
 
-@admin_required
+@dashboard_user_required
 def update_notes(request, timesheet_id):
     timesheet = get_object_or_404(WeeklyTimesheet.objects.filter(
         submission__isnull=False), pk=timesheet_id)
