@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib.admin.sites import NotRegistered
 from django.contrib.auth.admin import GroupAdmin, UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group
 
@@ -124,5 +125,8 @@ class SafeGroupAdmin(GroupAdmin):
         return request.user.is_superuser
 
 
-admin.site.unregister(Group)
+try:
+    admin.site.unregister(Group)
+except NotRegistered:
+    pass
 admin.site.register(Group, SafeGroupAdmin)
