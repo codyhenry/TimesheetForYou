@@ -1,4 +1,4 @@
-from django.contrib.auth.models import Permission
+from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
@@ -15,11 +15,16 @@ class SafeUserAdminTests(TestCase):
             is_staff=True,
         )
         user_content_type = ContentType.objects.get_for_model(User)
-        permissions = Permission.objects.filter(
+        user_permissions = Permission.objects.filter(
             content_type=user_content_type,
             codename__in={"add_user", "change_user", "view_user", "delete_user"},
         )
-        self.staff_admin.user_permissions.add(*permissions)
+        group_content_type = ContentType.objects.get_for_model(Group)
+        group_permissions = Permission.objects.filter(
+            content_type=group_content_type,
+            codename__in={"view_group", "change_group"},
+        )
+        self.staff_admin.user_permissions.add(*user_permissions, *group_permissions)
 
         self.nanny = User.objects.create_user(
             username="nanny-user",
@@ -89,7 +94,7 @@ class SafeUserAdminTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    def test_non_superuser_staff_cannot_open_group_admin(self):
+    def test_non_superuser_staff_cannot_open_group_admin_even_with_group_permissions(self):
         response = self.client.get(reverse("admin:auth_group_changelist"))
 
         self.assertEqual(response.status_code, 403)
