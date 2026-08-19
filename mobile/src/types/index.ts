@@ -85,7 +85,7 @@ export interface WeeklyTimesheet {
   week_start_date: string;
   week_end_date: string;
   status: TimesheetStatus;
-  submitted_at?: string;
+  submitted_at: string | null;
   total_hours: string;
   total_hours_by_family: FamilyHours[];
   signed_entry_count: number;
@@ -95,7 +95,7 @@ export interface WeeklyTimesheet {
   lifetime_requested_entry_count: number;
   requests_until_next_incentive: number;
   request_incentive_groups?: RequestIncentiveGroup[];
-  pdf_file?: string;
+  pdf_file: string | null;
   is_late_submission?: boolean;
   late_submission_note?: string;
   is_week_locked?: boolean;
