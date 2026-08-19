@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 
 from .models import User
 from .permissions import IsAdmin
-from .serializers import CurrentUserSerializer, NannySerializer
+from .serializers import CurrentUserSerializer, DashboardUserSerializer, NannySerializer
 
 
 class CurrentUserView(APIView):
@@ -22,3 +22,16 @@ class NannyManagementViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mix
 
     def perform_create(self, serializer):
         serializer.save(role=User.Role.NANNY)
+
+
+class DashboardUserManagementViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = DashboardUserSerializer
+    permission_classes = [IsAdmin]
+    queryset = User.objects.filter(role__in=[User.Role.OFFICE, User.Role.ADMIN]).order_by(
+        "role", "first_name", "last_name", "username"
+    )
