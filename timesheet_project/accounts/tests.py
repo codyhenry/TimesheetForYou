@@ -114,6 +114,19 @@ class RoleAccessAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_superuser_without_staff_cannot_manage_dashboard_users(self):
+        superuser_without_staff = User.objects.create_user(
+            username="superuser-without-staff",
+            password="StrongTestPass123!",
+            is_superuser=True,
+            is_staff=False,
+        )
+        self.client.force_authenticate(user=superuser_without_staff)
+
+        response = self.client.get(reverse("admin-dashboard-user-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_admin_can_create_office_user_with_forced_password_change(self):
         self.client.force_authenticate(user=self.admin)
 
