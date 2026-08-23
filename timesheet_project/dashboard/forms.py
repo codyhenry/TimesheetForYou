@@ -53,7 +53,7 @@ class DashboardManagedUserCreateForm(forms.ModelForm):
 
 
 class DashboardManagedUserUpdateForm(forms.ModelForm):
-    password = forms.CharField(
+    temporary_password = forms.CharField(
         required=False,
         widget=forms.PasswordInput,
         help_text="Optional temporary password reset. If set, the user must change it on next sign-in.",
@@ -72,20 +72,19 @@ class DashboardManagedUserUpdateForm(forms.ModelForm):
             "role",
             "is_active",
             "force_password_change",
-            "password",
         ]
         widgets = {
             "email": forms.EmailInput(),
         }
 
-    def clean_password(self):
-        password = self.cleaned_data.get("password")
+    def clean_temporary_password(self):
+        password = self.cleaned_data.get("temporary_password")
         if password:
             validate_password(password, self.instance)
         return password
 
     def save(self, commit=True):
-        password = self.cleaned_data.pop("password", "")
+        password = self.cleaned_data.get("temporary_password", "")
         user = super().save(commit=False)
         if password:
             user.set_password(password)
