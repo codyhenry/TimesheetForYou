@@ -203,7 +203,7 @@ AWS_S3_FILE_OVERWRITE=False
 AWS_S3_CACHE_CONTROL=private, max-age=300
 ```
 
-AWS credentials should be provided by the runtime environment, such as an IAM role or the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables. The app only needs object-level access to the configured media prefix in an existing bucket; it does not create AWS infrastructure at runtime.
+AWS credentials should be provided by the runtime environment, such as an IAM role or the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables. The app needs object-level access to the configured media prefix and bucket-level list access so django-storages can check whether a generated key already exists when `AWS_S3_FILE_OVERWRITE=False`; it does not create AWS infrastructure at runtime.
 
 Example least-privilege IAM policy:
 
@@ -211,6 +211,17 @@ Example least-privilege IAM policy:
 {
   "Version": "2012-10-17",
   "Statement": [
+    {
+      "Sid": "TimesheetMediaBucketList",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::timesheet-for-you-prod-media",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": "media/*"
+        }
+      }
+    },
     {
       "Sid": "TimesheetMediaObjectAccess",
       "Effect": "Allow",
