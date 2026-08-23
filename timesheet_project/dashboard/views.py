@@ -260,20 +260,28 @@ def _get_posted_managed_user(request):
 
 def _normalize_update_post_data(request, user):
     prefix = _get_update_form_prefix(user)
-    if f"{prefix}-role" in request.POST:
-        return request.POST
-
     data = request.POST.copy()
+
+    prefixed_password = f"{prefix}-password"
+    prefixed_temporary_password = f"{prefix}-temporary_password"
+    if prefixed_password in request.POST and prefixed_temporary_password not in request.POST:
+        data[prefixed_temporary_password] = request.POST.get(prefixed_password, "")
+
+    if f"{prefix}-role" in request.POST:
+        return data
+
     for field_name in [
         "first_name",
         "last_name",
         "email",
         "phone",
         "role",
-        "password",
     ]:
         if field_name in request.POST:
             data[f"{prefix}-{field_name}"] = request.POST.get(field_name, "")
+
+    if "password" in request.POST:
+        data[prefixed_temporary_password] = request.POST.get("password", "")
 
     for checkbox_name in ["is_active", "force_password_change"]:
         if checkbox_name in request.POST:
