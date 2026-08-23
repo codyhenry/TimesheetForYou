@@ -124,13 +124,15 @@ SECURE_SSL_REDIRECT=True
 USE_X_FORWARDED_PROTO=True
 SESSION_COOKIE_SECURE=True
 CSRF_COOKIE_SECURE=True
-SECURE_HSTS_SECONDS=31536000
+SECURE_HSTS_SECONDS=0
 SECURE_HSTS_INCLUDE_SUBDOMAINS=False
 SECURE_HSTS_PRELOAD=False
 SECURE_REFERRER_POLICY=same-origin
 ```
 
 Use `USE_X_FORWARDED_PROTO=True` when Django is behind a trusted HTTPS-terminating proxy or load balancer that sets `X-Forwarded-Proto: https`.
+
+`SECURE_HSTS_SECONDS` defaults to `0` so a new deployment can verify HTTPS behavior before sending long-lived browser HSTS headers. After HTTPS is confirmed stable for every production domain and subdomain you intend to serve, set `SECURE_HSTS_SECONDS=31536000`.
 
 Static files are served through WhiteNoise when `USE_WHITENOISE=True`. Run this during deployment after installing dependencies and before starting the web process:
 
@@ -169,6 +171,7 @@ Use it for load balancer or platform health checks. It intentionally does not to
 - Keep `SESSION_COOKIE_SECURE=True` and `CSRF_COOKIE_SECURE=True` in production.
 - Keep `SECURE_SSL_REDIRECT=True` unless HTTPS redirection is handled before traffic reaches Django.
 - Set `USE_X_FORWARDED_PROTO=True` only behind a trusted proxy that sets `X-Forwarded-Proto` correctly.
+- Set long-lived HSTS only after HTTPS is confirmed stable for all intended domains.
 - Run `python manage.py check --deploy` before promoting a release.
 
 ## Optional S3 Media Storage
