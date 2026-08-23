@@ -114,6 +114,10 @@ POSTGRES_HOST=replace-with-database-host
 POSTGRES_PORT=5432
 ```
 
+`ALLOWED_HOSTS` must contain explicit domains in production. `ALLOWED_HOSTS=*` is accepted only for local/debug development and will fail startup when `DEBUG=False`.
+
+Production requires PostgreSQL configuration. When `DEBUG=False`, the app fails startup instead of falling back to SQLite if `POSTGRES_DB` / `DB_NAME` is missing.
+
 Recommended production environment variables:
 
 ```env
@@ -121,16 +125,16 @@ DB_CONN_MAX_AGE=60
 DB_SSL_REQUIRE=True
 USE_WHITENOISE=True
 SECURE_SSL_REDIRECT=True
-USE_X_FORWARDED_PROTO=True
 SESSION_COOKIE_SECURE=True
 CSRF_COOKIE_SECURE=True
+SECURE_REDIRECT_EXEMPT=^healthz/$
 SECURE_HSTS_SECONDS=0
 SECURE_HSTS_INCLUDE_SUBDOMAINS=False
 SECURE_HSTS_PRELOAD=False
 SECURE_REFERRER_POLICY=same-origin
 ```
 
-Use `USE_X_FORWARDED_PROTO=True` when Django is behind a trusted HTTPS-terminating proxy or load balancer that sets `X-Forwarded-Proto: https`.
+`USE_X_FORWARDED_PROTO` defaults to `False`. Set `USE_X_FORWARDED_PROTO=True` only when Django is behind a trusted HTTPS-terminating proxy or load balancer that strips client-supplied forwarding headers and sets `X-Forwarded-Proto: https` itself.
 
 `SECURE_HSTS_SECONDS` defaults to `0` so a new deployment can verify HTTPS behavior before sending long-lived browser HSTS headers. After HTTPS is confirmed stable for every production domain and subdomain you intend to serve, set `SECURE_HSTS_SECONDS=31536000`.
 
@@ -159,18 +163,21 @@ The health check endpoint is unauthenticated and returns JSON at `/healthz/`:
 
 Use it for load balancer or platform health checks. It intentionally does not touch the database, so it confirms that Django can boot and route requests without making the app unhealthy during transient database maintenance.
 
+`/healthz/` is included in `SECURE_REDIRECT_EXEMPT` by default so HTTP platform probes can receive a 200 response even when `SECURE_SSL_REDIRECT=True`. If your platform supports HTTPS health probes instead, you may remove that exemption and probe the HTTPS endpoint.
+
 ### Production Checklist
 
 - Set `DEBUG=False`.
 - Set a unique production `SECRET_KEY`.
-- Set `ALLOWED_HOSTS` to the exact production domains.
+- Set `ALLOWED_HOSTS` to the exact production domains; do not use `*`.
 - Set `CSRF_TRUSTED_ORIGINS` to the exact HTTPS origins used by dashboard/browser clients.
-- Run PostgreSQL in production; SQLite is only for local development.
+- Run PostgreSQL in production; SQLite is only for local development and is rejected when `DEBUG=False`.
 - Run `migrate` and `collectstatic` during deployment.
 - Serve the app behind HTTPS.
 - Keep `SESSION_COOKIE_SECURE=True` and `CSRF_COOKIE_SECURE=True` in production.
 - Keep `SECURE_SSL_REDIRECT=True` unless HTTPS redirection is handled before traffic reaches Django.
-- Set `USE_X_FORWARDED_PROTO=True` only behind a trusted proxy that sets `X-Forwarded-Proto` correctly.
+- Set `USE_X_FORWARDED_PROTO=True` only behind a trusted proxy that strips incoming forwarding headers and sets `X-Forwarded-Proto` correctly.
+- Keep `/healthz/` exempted from SSL redirects unless your health probe uses HTTPS.
 - Set long-lived HSTS only after HTTPS is confirmed stable for all intended domains.
 - Run `python manage.py check --deploy` before promoting a release.
 
