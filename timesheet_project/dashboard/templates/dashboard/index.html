@@ -19,6 +19,7 @@
         .muted { color: #6b7280; font-size: 0.9em; }
         .filter-actions { display: flex; gap: 8px; align-items: center; }
         .secondary-link { color: #374151; text-decoration: none; font-size: 0.9em; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 8px; }
         .timesheet-title { font-weight: 700; }
         .indicator-list { display: flex; gap: 6px; flex-wrap: wrap; }
         .indicator { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid #d1d5db; border-radius: 999px; background: #f9fafb; font-size: 0.85em; }
@@ -44,7 +45,12 @@
     </style>
 </head>
 <body>
-    <h1>Submitted Timesheets</h1>
+    <div class="page-header">
+        <h1>Submitted Timesheets</h1>
+        {% if request.user.role == "admin" or request.user.is_staff %}
+            <a class="button-link" href="{% url 'dashboard-users' %}">Manage Users</a>
+        {% endif %}
+    </div>
     <p class="muted">Submitted timestamps are shown in your device's local time. Work dates and start/end times are shown exactly as entered on the timesheet.</p>
     <div class="stats">
         <div class="card"><strong>Timesheets:</strong> {{ stats.timesheet_count }}</div>
@@ -218,9 +224,9 @@
                             <th>Start</th>
                             <th>End</th>
                             <th>Hours</th>
+                            <th>Signature</th>
                             <th>Requested</th>
                             <th>Notes</th>
-                            <th>Signature Status</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -231,134 +237,100 @@
                                 <td>{{ entry.start_time }}</td>
                                 <td>{{ entry.end_time }}</td>
                                 <td>{{ entry.total_hours }}</td>
-                                <td>{% if entry.family_requested_nanny %}<span class="requested-marker">Yes</span>{% else %}No{% endif %}</td>
-                                <td class="notes-cell">{{ entry.notes|default:"—" }}</td>
                                 <td>{{ entry.get_signature_status_display }}</td>
+                                <td>{% if entry.family_requested_nanny %}<span class="requested-marker">Requested</span>{% else %}—{% endif %}</td>
+                                <td class="notes-cell">{{ entry.notes|default:"—"|linebreaksbr }}</td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="8">No entries</td></tr>
+                            <tr><td colspan="8">No entries for this timesheet.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
 
-                {% if timesheet.dashboard_request_incentive_groups %}
-                    <h3 class="section-heading">Request Incentive Milestones</h3>
-                    {% for group in timesheet.dashboard_request_incentive_groups %}
-                        <div class="incentive-card">
-                            <strong>Incentive {{ group.incentive_number }}</strong>
-                            <p class="muted">Earned on lifetime request #{{ group.milestone_request_number }}.</p>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Request #</th>
-                                        <th>Work Date</th>
-                                        <th>Family</th>
-                                        <th>Week</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for request_entry in group.entries %}
-                                        <tr>
-                                            <td>{{ request_entry.request_number }}</td>
-                                            <td>{{ request_entry.work_date }}</td>
-                                            <td>{{ request_entry.family_name }}</td>
-                                            <td>{{ request_entry.week_start_date }} → {{ request_entry.week_end_date }}</td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% endfor %}
-                {% endif %}
+                <h3 class="section-heading">Request Incentive Details</h3>
+                {% for group in timesheet.dashboard_request_incentive_groups %}
+                    <div class="incentive-card">
+                        <strong>Incentive {{ group.incentive_number }}</strong>
+                        <div class="muted">This timesheet completed lifetime request #{{ group.milestone_request_number }}.</div>
+                        <ul>
+                            {% for item in group.entries %}
+                                <li>#{{ item.request_number }} — {{ item.work_date }} — {{ item.family_name }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% empty %}
+                    <p class="muted">No request incentive milestone on this timesheet.</p>
+                {% endfor %}
 
+                <h3 class="section-heading">Admin Notes</h3>
                 <form method="post" action="{% url 'dashboard-notes' timesheet.id %}">
                     {% csrf_token %}
-                    <label for="admin_notes_{{ timesheet.id }}"><strong>Admin Notes</strong></label>
+                    <label for="admin_notes_{{ timesheet.id }}">Admin Notes</label>
                     <textarea id="admin_notes_{{ timesheet.id }}" name="admin_notes">{{ timesheet.admin_notes }}</textarea>
-                    <button type="submit">Save Notes</button>
+                    <p><button type="submit">Save Notes</button></p>
                 </form>
             </div>
         </div>
     {% endfor %}
 
     <script>
-        let lastFocusedElement = null;
-
-        function localizeTimestamps(root) {
-            root.querySelectorAll(".local-datetime").forEach((element) => {
-                const value = element.getAttribute("datetime");
-                if (!value) {
-                    return;
-                }
-
-                const date = new Date(value);
-                if (Number.isNaN(date.getTime())) {
-                    return;
-                }
-
-                element.textContent = new Intl.DateTimeFormat(undefined, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                }).format(date);
-                element.title = value;
-            });
-        }
-
-        function openModal(id) {
-            const modal = document.getElementById(id);
-            if (!modal) {
-                return;
-            }
-            lastFocusedElement = document.activeElement;
-            modal.classList.add("is-open");
-            modal.setAttribute("aria-hidden", "false");
-            document.body.classList.add("modal-open");
-
-            const closeButton = modal.querySelector(".modal-close");
-            if (closeButton) {
-                closeButton.focus();
-            }
-        }
-
-        function closeModal(id) {
-            const modal = document.getElementById(id);
-            if (!modal) {
-                return;
-            }
-            modal.classList.remove("is-open");
-            modal.setAttribute("aria-hidden", "true");
-            if (!document.querySelector(".modal-backdrop.is-open")) {
-                document.body.classList.remove("modal-open");
-            }
-            if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
-                lastFocusedElement.focus();
-            }
-            lastFocusedElement = null;
-        }
-
-        document.querySelectorAll(".open-modal").forEach((button) => {
-            button.addEventListener("click", () => openModal(button.dataset.target));
-        });
-
-        document.querySelectorAll(".modal-close").forEach((button) => {
-            button.addEventListener("click", () => closeModal(button.dataset.target));
-        });
-
-        document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
-            backdrop.addEventListener("click", (event) => {
-                if (event.target === backdrop) {
-                    closeModal(backdrop.id);
-                }
+        document.querySelectorAll('.local-datetime').forEach((element) => {
+            const value = element.getAttribute('datetime');
+            if (!value) return;
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return;
+            element.textContent = date.toLocaleString([], {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit'
             });
         });
 
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape") {
-                document.querySelectorAll(".modal-backdrop.is-open").forEach((modal) => closeModal(modal.id));
+        const lastFocusedElements = new Map();
+
+        const openModal = (id, opener) => {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            if (opener) lastFocusedElements.set(id, opener);
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            const closeButton = modal.querySelector('.modal-close');
+            if (closeButton) closeButton.focus();
+        };
+
+        const closeModal = (id) => {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            if (!document.querySelector('.modal-backdrop.is-open')) {
+                document.body.classList.remove('modal-open');
             }
+            const opener = lastFocusedElements.get(id);
+            lastFocusedElements.delete(id);
+            if (opener && typeof opener.focus === 'function' && document.contains(opener)) {
+                opener.focus();
+            }
+        };
+
+        document.querySelectorAll('.open-modal').forEach((button) => {
+            button.addEventListener('click', () => openModal(button.dataset.target, button));
         });
 
-        localizeTimestamps(document);
+        document.querySelectorAll('.modal-close').forEach((button) => {
+            button.addEventListener('click', () => closeModal(button.dataset.target));
+        });
+
+        document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
+            backdrop.addEventListener('click', (event) => {
+                if (event.target === backdrop) closeModal(backdrop.id);
+            });
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            document.querySelectorAll('.modal-backdrop.is-open').forEach((modal) => closeModal(modal.id));
+        });
     </script>
 </body>
 </html>

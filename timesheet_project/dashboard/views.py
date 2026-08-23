@@ -1,14 +1,22 @@
 from decimal import Decimal
 
+from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.forms import PasswordChangeForm
 from django.db.models import Count, Sum
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
+from dashboard.forms import (
+    MANAGED_ROLE_CHOICES,
+    MANAGED_ROLES,
+    DashboardManagedUserCreateForm,
+    DashboardManagedUserUpdateForm,
+)
 from timesheets.models import TimeEntry, WeeklyTimesheet
 from timesheets.services import (
     filter_submitted_timesheets,
@@ -21,10 +29,28 @@ from timesheets.services import (
 dashboard_user_required = user_passes_test(
     lambda user: user.is_authenticated and getattr(user, "can_access_dashboard", False)
 )
+dashboard_admin_required = user_passes_test(
+    lambda user: user.is_authenticated
+    and user.is_active
+    and (
+        getattr(user, "role", None) == User.Role.ADMIN
+        or getattr(user, "is_staff", False)
+    )
+)
 
 
 def _dashboard_password_ready_required(view_func):
     @dashboard_user_required
+    def wrapped(request, *args, **kwargs):
+        if getattr(request.user, "force_password_change", False):
+            return redirect("dashboard-password-setup")
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
+
+
+def _dashboard_admin_password_ready_required(view_func):
+    @dashboard_admin_required
     def wrapped(request, *args, **kwargs):
         if getattr(request.user, "force_password_change", False):
             return redirect("dashboard-password-setup")
@@ -209,6 +235,79 @@ def _prepare_dashboard_timesheets(queryset):
     return timesheets
 
 
+def _managed_user_queryset():
+    return User.objects.filter(role__in=MANAGED_ROLES, is_superuser=False).order_by(
+        "role", "last_name", "first_name", "username"
+    )
+
+
+def _get_managed_user(pk):
+    return get_object_or_404(_managed_user_queryset(), pk=pk)
+
+
+def _get_update_form_prefix(user):
+    return f"user-{user.pk}"
+
+
+def _get_posted_managed_user(request):
+    user_id = request.POST.get("user_id")
+    try:
+        user_pk = int(user_id)
+    except (TypeError, ValueError):
+        raise Http404("Managed user not found.")
+    return _get_managed_user(user_pk)
+
+
+def _normalize_update_post_data(request, user):
+    prefix = _get_update_form_prefix(user)
+    data = request.POST.copy()
+
+    prefixed_password = f"{prefix}-password"
+    prefixed_temporary_password = f"{prefix}-temporary_password"
+    if prefixed_password in request.POST and prefixed_temporary_password not in request.POST:
+        data[prefixed_temporary_password] = request.POST.get(prefixed_password, "")
+
+    if f"{prefix}-role" in request.POST:
+        return data
+
+    for field_name in [
+        "first_name",
+        "last_name",
+        "email",
+        "phone",
+        "role",
+    ]:
+        if field_name in request.POST:
+            data[f"{prefix}-{field_name}"] = request.POST.get(field_name, "")
+
+    if "password" in request.POST:
+        data[prefixed_temporary_password] = request.POST.get("password", "")
+
+    for checkbox_name in ["is_active", "force_password_change"]:
+        if checkbox_name in request.POST:
+            data[f"{prefix}-{checkbox_name}"] = request.POST.get(checkbox_name)
+
+    return data
+
+
+def _render_user_management(request, create_form=None, update_form=None, update_user=None):
+    users = list(_managed_user_queryset())
+    return render(
+        request,
+        "dashboard/users.html",
+        {
+            "create_form": create_form or DashboardManagedUserCreateForm(initial={"is_active": True}),
+            "update_form": update_form,
+            "update_user": update_user,
+            "nannies": [user for user in users if user.role == User.Role.NANNY],
+            "dashboard_users": [
+                user for user in users if user.role in {User.Role.OFFICE, User.Role.ADMIN}
+            ],
+            "role_choices": MANAGED_ROLE_CHOICES,
+        },
+    )
+
+
 @dashboard_user_required
 def password_setup(request):
     if not getattr(request.user, "force_password_change", False):
@@ -244,6 +343,37 @@ def index(request, timesheet_id=None):
             "filter_options": _get_filter_options(request),
         },
     )
+
+
+@_dashboard_admin_password_ready_required
+def user_management(request):
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "create":
+            form = DashboardManagedUserCreateForm(request.POST)
+            if form.is_valid():
+                user = form.save()
+                messages.success(request, f"Created {user.get_full_name() or user.username}.")
+                return redirect("dashboard-users")
+            return _render_user_management(request, create_form=form)
+
+        if action == "update":
+            user = _get_posted_managed_user(request)
+            form = DashboardManagedUserUpdateForm(
+                _normalize_update_post_data(request, user),
+                instance=user,
+                prefix=_get_update_form_prefix(user),
+            )
+            if form.is_valid():
+                user = form.save()
+                messages.success(request, f"Updated {user.get_full_name() or user.username}.")
+                return redirect("dashboard-users")
+            return _render_user_management(request, update_form=form, update_user=user)
+
+        messages.error(request, "Unknown user management action.")
+        return redirect("dashboard-users")
+
+    return _render_user_management(request)
 
 
 @_dashboard_password_ready_required

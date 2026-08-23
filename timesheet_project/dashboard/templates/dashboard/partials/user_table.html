@@ -1,0 +1,134 @@
+<table>
+    <thead>
+        <tr>
+            <th>User</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Password Setup</th>
+            <th>Update</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+            <tr>
+                <td>
+                    <strong>{{ user.get_full_name|default:user.username }}</strong><br>
+                    <span class="muted">{{ user.username }}</span><br>
+                    {% if user.email %}<span class="muted">{{ user.email }}</span><br>{% endif %}
+                    {% if user.phone %}<span class="muted">{{ user.phone }}</span>{% endif %}
+                    {% if user.is_staff %}<br><span class="muted">Django staff access preserved</span>{% endif %}
+                </td>
+                <td><span class="role-pill">{{ user.get_role_display }}</span></td>
+                <td>
+                    {% if user.is_active %}
+                        <span class="status-active">Active</span>
+                    {% else %}
+                        <span class="status-inactive">Inactive</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if user.force_password_change %}
+                        Required
+                    {% else %}
+                        Complete
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="post" class="inline-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="update">
+                        <input type="hidden" name="user_id" value="{{ user.id }}">
+
+                        {% if update_user and update_user.id == user.id %}
+                            <div>
+                                <label for="{{ update_form.first_name.id_for_label }}">First</label>
+                                {{ update_form.first_name }}
+                                {{ update_form.first_name.errors }}
+                            </div>
+                            <div>
+                                <label for="{{ update_form.last_name.id_for_label }}">Last</label>
+                                {{ update_form.last_name }}
+                                {{ update_form.last_name.errors }}
+                            </div>
+                            <div>
+                                <label for="{{ update_form.email.id_for_label }}">Email</label>
+                                {{ update_form.email }}
+                                {{ update_form.email.errors }}
+                            </div>
+                            <div>
+                                <label for="{{ update_form.phone.id_for_label }}">Phone</label>
+                                {{ update_form.phone }}
+                                {{ update_form.phone.errors }}
+                            </div>
+                            <div>
+                                <label for="{{ update_form.role.id_for_label }}">Role</label>
+                                {{ update_form.role }}
+                                {{ update_form.role.errors }}
+                            </div>
+                            <div class="checkbox-row">
+                                {{ update_form.is_active }}
+                                <label for="{{ update_form.is_active.id_for_label }}">Active</label>
+                                {{ update_form.is_active.errors }}
+                            </div>
+                            <div class="checkbox-row">
+                                {{ update_form.force_password_change }}
+                                <label for="{{ update_form.force_password_change.id_for_label }}">Force password setup</label>
+                                {{ update_form.force_password_change.errors }}
+                            </div>
+                            <div class="wide">
+                                <label for="{{ update_form.temporary_password.id_for_label }}">Temporary password reset</label>
+                                {{ update_form.temporary_password }}
+                                {{ update_form.temporary_password.errors }}
+                            </div>
+                            {% if update_form.non_field_errors %}
+                                <div class="wide">{{ update_form.non_field_errors }}</div>
+                            {% endif %}
+                        {% else %}
+                            <div>
+                                <label for="user-{{ user.id }}-first_name">First</label>
+                                <input id="user-{{ user.id }}-first_name" name="user-{{ user.id }}-first_name" value="{{ user.first_name }}">
+                            </div>
+                            <div>
+                                <label for="user-{{ user.id }}-last_name">Last</label>
+                                <input id="user-{{ user.id }}-last_name" name="user-{{ user.id }}-last_name" value="{{ user.last_name }}">
+                            </div>
+                            <div>
+                                <label for="user-{{ user.id }}-email">Email</label>
+                                <input id="user-{{ user.id }}-email" type="email" name="user-{{ user.id }}-email" value="{{ user.email }}">
+                            </div>
+                            <div>
+                                <label for="user-{{ user.id }}-phone">Phone</label>
+                                <input id="user-{{ user.id }}-phone" name="user-{{ user.id }}-phone" value="{{ user.phone }}">
+                            </div>
+                            <div>
+                                <label for="user-{{ user.id }}-role">Role</label>
+                                <select id="user-{{ user.id }}-role" name="user-{{ user.id }}-role">
+                                    {% for value, label in role_choices %}
+                                        <option value="{{ value }}" {% if user.role == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="checkbox-row">
+                                <input id="user-{{ user.id }}-is_active" type="checkbox" name="user-{{ user.id }}-is_active" {% if user.is_active %}checked{% endif %}>
+                                <label for="user-{{ user.id }}-is_active">Active</label>
+                            </div>
+                            <div class="checkbox-row">
+                                <input id="user-{{ user.id }}-force_password_change" type="checkbox" name="user-{{ user.id }}-force_password_change" {% if user.force_password_change %}checked{% endif %}>
+                                <label for="user-{{ user.id }}-force_password_change">Force password setup</label>
+                            </div>
+                            <div class="wide">
+                                <label for="user-{{ user.id }}-temporary_password">Temporary password reset</label>
+                                <input id="user-{{ user.id }}-temporary_password" type="password" name="user-{{ user.id }}-temporary_password" autocomplete="new-password">
+                            </div>
+                        {% endif %}
+                        <div>
+                            <button type="submit">Save</button>
+                        </div>
+                    </form>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="5">{{ empty_label }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>

@@ -36,10 +36,18 @@ class ChangePasswordView(APIView):
         )
 
 
-class NannyManagementViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
+class NannyManagementViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
     serializer_class = NannySerializer
     permission_classes = [IsAdmin]
-    queryset = User.objects.filter(role=User.Role.NANNY).order_by("first_name", "last_name", "username")
+    queryset = User.objects.filter(
+        role=User.Role.NANNY,
+        is_superuser=False,
+    ).order_by("first_name", "last_name", "username")
 
     def perform_create(self, serializer):
         serializer.save(role=User.Role.NANNY)
@@ -53,6 +61,7 @@ class DashboardUserManagementViewSet(
 ):
     serializer_class = DashboardUserSerializer
     permission_classes = [IsAdmin]
-    queryset = User.objects.filter(role__in=[User.Role.OFFICE, User.Role.ADMIN]).order_by(
-        "role", "first_name", "last_name", "username"
-    )
+    queryset = User.objects.filter(
+        role__in=[User.Role.OFFICE, User.Role.ADMIN],
+        is_superuser=False,
+    ).order_by("role", "first_name", "last_name", "username")

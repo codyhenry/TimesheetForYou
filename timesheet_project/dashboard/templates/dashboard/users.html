@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>User Management</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 32px; }
+        th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; vertical-align: top; }
+        th { background: #f3f4f6; }
+        label { display: block; font-weight: 700; font-size: 0.85em; margin-bottom: 4px; }
+        input, select { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; }
+        input[type="checkbox"] { width: auto; }
+        button, .button-link { display: inline-block; padding: 8px 12px; border: 1px solid #1f2937; border-radius: 6px; background: #1f2937; color: #fff; text-decoration: none; cursor: pointer; }
+        .secondary-link { color: #374151; text-decoration: none; font-size: 0.9em; }
+        .muted { color: #6b7280; font-size: 0.9em; }
+        .header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
+        .messages { margin: 16px 0; padding: 0; list-style: none; }
+        .messages li { padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; background: #f3f4f6; border: 1px solid #d1d5db; }
+        .messages .success { background: #ecfdf5; border-color: #10b981; }
+        .messages .error { background: #fef2f2; border-color: #ef4444; }
+        .card { border: 1px solid #d1d5db; border-radius: 8px; padding: 16px; margin-bottom: 24px; background: #fff; }
+        .form-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(160px, 1fr)); align-items: end; }
+        .checkbox-row { display: flex; gap: 8px; align-items: center; }
+        .checkbox-row label { margin: 0; font-weight: 400; }
+        .errorlist { margin: 4px 0 0; padding-left: 18px; color: #b91c1c; font-size: 0.85em; }
+        .role-pill { display: inline-block; padding: 3px 8px; border: 1px solid #d1d5db; border-radius: 999px; background: #f9fafb; font-size: 0.85em; }
+        .status-active { color: #047857; font-weight: 700; }
+        .status-inactive { color: #b91c1c; font-weight: 700; }
+        .inline-form { display: grid; gap: 8px; grid-template-columns: repeat(6, minmax(120px, 1fr)); align-items: end; }
+        .wide { grid-column: span 2; }
+        @media (max-width: 1000px) {
+            .form-grid, .inline-form { grid-template-columns: 1fr; }
+            .wide { grid-column: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>User Management</h1>
+            <p class="muted">Create nannies, office users, and dashboard admins. Dashboard-created users are never granted Django staff or superuser privileges.</p>
+        </div>
+        <a class="secondary-link" href="{% url 'dashboard-index' %}">Back to Dashboard</a>
+    </div>
+
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li class="{{ message.tags }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <section class="card">
+        <h2>Create User</h2>
+        {% if create_form.non_field_errors %}{{ create_form.non_field_errors }}{% endif %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="form-grid">
+                <div>
+                    <label for="{{ create_form.username.id_for_label }}">Username</label>
+                    {{ create_form.username }}
+                    {{ create_form.username.errors }}
+                </div>
+                <div>
+                    <label for="{{ create_form.password.id_for_label }}">Temporary password</label>
+                    {{ create_form.password }}
+                    {{ create_form.password.errors }}
+                </div>
+                <div>
+                    <label for="{{ create_form.role.id_for_label }}">Role</label>
+                    {{ create_form.role }}
+                    {{ create_form.role.errors }}
+                </div>
+                <div class="checkbox-row">
+                    {{ create_form.is_active }}
+                    <label for="{{ create_form.is_active.id_for_label }}">Active</label>
+                    {{ create_form.is_active.errors }}
+                </div>
+                <div>
+                    <label for="{{ create_form.first_name.id_for_label }}">First name</label>
+                    {{ create_form.first_name }}
+                    {{ create_form.first_name.errors }}
+                </div>
+                <div>
+                    <label for="{{ create_form.last_name.id_for_label }}">Last name</label>
+                    {{ create_form.last_name }}
+                    {{ create_form.last_name.errors }}
+                </div>
+                <div>
+                    <label for="{{ create_form.email.id_for_label }}">Email</label>
+                    {{ create_form.email }}
+                    {{ create_form.email.errors }}
+                </div>
+                <div>
+                    <label for="{{ create_form.phone.id_for_label }}">Phone</label>
+                    {{ create_form.phone }}
+                    {{ create_form.phone.errors }}
+                </div>
+                <div>
+                    <button type="submit">Create User</button>
+                </div>
+            </div>
+        </form>
+        <p class="muted">Temporary-password users are forced through password setup before normal dashboard or mobile workflows.</p>
+    </section>
+
+    <section>
+        <h2>Nannies</h2>
+        {% include "dashboard/partials/user_table.html" with users=nannies empty_label="No nannies found." %}
+    </section>
+
+    <section>
+        <h2>Office and Admin Users</h2>
+        {% include "dashboard/partials/user_table.html" with users=dashboard_users empty_label="No dashboard users found." %}
+    </section>
+</body>
+</html>
