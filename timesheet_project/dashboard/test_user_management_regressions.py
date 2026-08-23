@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import time, timedelta
 
 from django.test import TestCase
 from django.urls import reverse
@@ -96,7 +96,7 @@ class DashboardEntryNotesRegressionTests(TestCase):
         timesheet = WeeklyTimesheet.objects.create(
             nanny=nanny,
             week_start_date=week_start,
-            week_end_date=week_start + timezone.timedelta(days=6),
+            week_end_date=week_start + timedelta(days=6),
         )
         TimeEntry.objects.create(
             timesheet=timesheet,
