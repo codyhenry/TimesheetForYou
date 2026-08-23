@@ -239,7 +239,7 @@
                                 <td>{{ entry.total_hours }}</td>
                                 <td>{{ entry.get_signature_status_display }}</td>
                                 <td>{% if entry.family_requested_nanny %}<span class="requested-marker">Requested</span>{% else %}—{% endif %}</td>
-                                <td class="notes-cell">{{ entry.notes|linebreaksbr }}</td>
+                                <td class="notes-cell">{{ entry.notes|default:"—"|linebreaksbr }}</td>
                             </tr>
                         {% empty %}
                             <tr><td colspan="8">No entries for this timesheet.</td></tr>
