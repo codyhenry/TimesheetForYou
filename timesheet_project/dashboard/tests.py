@@ -147,8 +147,8 @@ class DashboardFilterTests(TestCase):
         self.assertContains(response, "Unsigned entries")
         self.assertContains(response, "Late submission")
         self.assertContains(response, "Request incentive")
-        self.assertContains(response, "Request Incentive Milestones")
-        self.assertContains(response, "Earned on lifetime request #5")
+        self.assertContains(response, "Request Incentive Details")
+        self.assertContains(response, "completed lifetime request #5")
         self.assertContains(response, "Smith 5")
 
     def test_dashboard_modal_shows_requested_markers_and_entry_notes(self):
@@ -189,3 +189,79 @@ class DashboardFilterTests(TestCase):
             f"{reverse('dashboard-index')}?week_start={previous_week_start.isoformat()}",
             fetch_redirect_response=False,
         )
+
+
+class DashboardUserManagementRegressionTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="admin-ui",
+            password="StrongTestPass123!",
+            role=User.Role.ADMIN,
+        )
+
+    def test_user_update_preserves_existing_staff_access(self):
+        staff_admin = User.objects.create_user(
+            username="staff-admin",
+            password="StrongTestPass123!",
+            role=User.Role.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("dashboard-users"),
+            {
+                "action": "update",
+                "user_id": str(staff_admin.id),
+                f"user-{staff_admin.id}-first_name": "Staff",
+                f"user-{staff_admin.id}-last_name": "Admin",
+                f"user-{staff_admin.id}-email": "staff@example.com",
+                f"user-{staff_admin.id}-phone": "555-0102",
+                f"user-{staff_admin.id}-role": User.Role.ADMIN,
+                f"user-{staff_admin.id}-is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        staff_admin.refresh_from_db()
+        self.assertTrue(staff_admin.is_staff)
+        self.assertTrue(staff_admin.can_access_django_admin)
+        self.assertEqual(staff_admin.email, "staff@example.com")
+
+    def test_invalid_update_user_id_returns_controlled_client_error(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("dashboard-users"),
+            {
+                "action": "update",
+                "user_id": "not-a-number",
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_failed_update_form_uses_row_specific_ids(self):
+        nanny = User.objects.create_user(
+            username="nanny-ui",
+            password="StrongTestPass123!",
+            role=User.Role.NANNY,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("dashboard-users"),
+            {
+                "action": "update",
+                "user_id": str(nanny.id),
+                f"user-{nanny.id}-first_name": "Nanny",
+                f"user-{nanny.id}-last_name": "User",
+                f"user-{nanny.id}-email": "not-an-email",
+                f"user-{nanny.id}-role": User.Role.NANNY,
+                f"user-{nanny.id}-is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'id="id_user-{nanny.id}-first_name"')
+        self.assertContains(response, f'for="id_user-{nanny.id}-first_name"')
