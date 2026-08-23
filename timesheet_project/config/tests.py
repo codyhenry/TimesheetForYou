@@ -37,13 +37,11 @@ class RootAndErrorRoutingTests(TestCase):
 
 
 class ProductionSettingsHelpersTests(SimpleTestCase):
-    @override_settings(DEBUG=False, ALLOWED_HOSTS=["timesheet.example.com"])
     def test_csv_config_strips_empty_values(self):
-        with self.settings():
-            self.assertEqual(
-                csv_config("TEST_CSV_SETTING", default=" one.example.com, two.example.com ,, "),
-                ["one.example.com", "two.example.com"],
-            )
+        self.assertEqual(
+            csv_config("TEST_CSV_SETTING", default=" one.example.com, two.example.com ,, "),
+            ["one.example.com", "two.example.com"],
+        )
 
     @override_settings(
         DEBUG=False,
