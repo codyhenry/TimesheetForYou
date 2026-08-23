@@ -22,6 +22,8 @@ if not SECRET_KEY:
 
 default_allowed_hosts = "*" if DEBUG else "testserver" if IS_TESTING else ""
 ALLOWED_HOSTS = csv_config("ALLOWED_HOSTS", default=default_allowed_hosts)
+if IS_TESTING and not ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ["testserver"]
 if not DEBUG and not IS_TESTING:
     if not ALLOWED_HOSTS:
         raise ValueError("ALLOWED_HOSTS must be set when DEBUG is False.")
