@@ -19,7 +19,7 @@ class RootAndErrorRoutingTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("dashboard-index"))
 
-    @override_settings(SECURE_SSL_REDIRECT=True, SECURE_REDIRECT_EXEMPT=["^healthz/$"])
+    @override_settings(SECURE_SSL_REDIRECT=True, SECURE_REDIRECT_EXEMPT=["^/?healthz/$"])
     def test_healthz_returns_ok_without_authentication_when_ssl_redirects_are_enabled(self):
         response = self.client.get(reverse("healthz"))
 
@@ -143,7 +143,7 @@ print(json.dumps({
             "whitenoise.storage.CompressedManifestStaticFilesStorage",
         )
         self.assertTrue(loaded["secure_ssl_redirect"])
-        self.assertEqual(loaded["secure_redirect_exempt"], ["^healthz/$"])
+        self.assertEqual(loaded["secure_redirect_exempt"], ["^/?healthz/$"])
         self.assertIsNone(loaded["secure_proxy_ssl_header"])
         self.assertTrue(loaded["session_cookie_secure"])
         self.assertTrue(loaded["csrf_cookie_secure"])
@@ -190,8 +190,10 @@ print(json.dumps({
 
         self.assertEqual(result.returncode, 0, result.stderr)
         loaded = json.loads(result.stdout)
+        self.assertEqual(loaded["allowed_hosts"], ["testserver"])
         self.assertEqual(loaded["database_engine"], "django.db.backends.sqlite3")
         self.assertTrue(loaded["database_name"].endswith("test_db.sqlite3"))
+        self.assertFalse(loaded["secure_ssl_redirect"])
 
     def test_production_uses_db_name_when_postgres_db_is_empty(self):
         result = self._load_settings_subprocess(
