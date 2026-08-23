@@ -116,6 +116,8 @@ POSTGRES_PORT=5432
 
 `ALLOWED_HOSTS` must contain explicit domains in production. `ALLOWED_HOSTS=*` is accepted only for local/debug development and will fail startup when `DEBUG=False`.
 
+`CSRF_TRUSTED_ORIGINS` must contain the exact HTTPS origins used by browser/dashboard clients in production. The app fails startup when this value is missing and `DEBUG=False`.
+
 Production requires PostgreSQL configuration. When `DEBUG=False`, the app fails startup instead of falling back to SQLite if `POSTGRES_DB` / `DB_NAME` is missing.
 
 Recommended production environment variables:
@@ -165,6 +167,8 @@ Use it for load balancer or platform health checks. It intentionally does not to
 
 `/healthz/` is included in `SECURE_REDIRECT_EXEMPT` by default so HTTP platform probes can receive a 200 response even when `SECURE_SSL_REDIRECT=True`. If your platform supports HTTPS health probes instead, you may remove that exemption and probe the HTTPS endpoint.
 
+Health probes must still send a `Host` header that matches `ALLOWED_HOSTS`, because Django validates the host before URL routing. Configure the probe to use the public production hostname, or add the probe's internal hostname to `ALLOWED_HOSTS`.
+
 ### Production Checklist
 
 - Set `DEBUG=False`.
@@ -178,6 +182,7 @@ Use it for load balancer or platform health checks. It intentionally does not to
 - Keep `SECURE_SSL_REDIRECT=True` unless HTTPS redirection is handled before traffic reaches Django.
 - Set `USE_X_FORWARDED_PROTO=True` only behind a trusted proxy that strips incoming forwarding headers and sets `X-Forwarded-Proto` correctly.
 - Keep `/healthz/` exempted from SSL redirects unless your health probe uses HTTPS.
+- Configure health probes to send an allowed `Host` header.
 - Set long-lived HSTS only after HTTPS is confirmed stable for all intended domains.
 - Run `python manage.py check --deploy` before promoting a release.
 
