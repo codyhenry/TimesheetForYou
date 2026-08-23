@@ -258,6 +258,30 @@ def _get_posted_managed_user(request):
     return _get_managed_user(user_pk)
 
 
+def _normalize_update_post_data(request, user):
+    prefix = _get_update_form_prefix(user)
+    if f"{prefix}-role" in request.POST:
+        return request.POST
+
+    data = request.POST.copy()
+    for field_name in [
+        "first_name",
+        "last_name",
+        "email",
+        "phone",
+        "role",
+        "password",
+    ]:
+        if field_name in request.POST:
+            data[f"{prefix}-{field_name}"] = request.POST.get(field_name, "")
+
+    for checkbox_name in ["is_active", "force_password_change"]:
+        if checkbox_name in request.POST:
+            data[f"{prefix}-{checkbox_name}"] = request.POST.get(checkbox_name)
+
+    return data
+
+
 def _render_user_management(request, create_form=None, update_form=None, update_user=None):
     users = list(_managed_user_queryset())
     return render(
@@ -328,7 +352,7 @@ def user_management(request):
         if action == "update":
             user = _get_posted_managed_user(request)
             form = DashboardManagedUserUpdateForm(
-                request.POST,
+                _normalize_update_post_data(request, user),
                 instance=user,
                 prefix=_get_update_form_prefix(user),
             )
