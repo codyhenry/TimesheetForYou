@@ -76,9 +76,9 @@
                                 {{ update_form.force_password_change.errors }}
                             </div>
                             <div class="wide">
-                                <label for="{{ update_form.password.id_for_label }}">Temporary password reset</label>
-                                {{ update_form.password }}
-                                {{ update_form.password.errors }}
+                                <label for="{{ update_form.temporary_password.id_for_label }}">Temporary password reset</label>
+                                {{ update_form.temporary_password }}
+                                {{ update_form.temporary_password.errors }}
                             </div>
                             {% if update_form.non_field_errors %}
                                 <div class="wide">{{ update_form.non_field_errors }}</div>
@@ -117,8 +117,8 @@
                                 <label for="user-{{ user.id }}-force_password_change">Force password setup</label>
                             </div>
                             <div class="wide">
-                                <label for="user-{{ user.id }}-password">Temporary password reset</label>
-                                <input id="user-{{ user.id }}-password" type="password" name="user-{{ user.id }}-password" autocomplete="new-password">
+                                <label for="user-{{ user.id }}-temporary_password">Temporary password reset</label>
+                                <input id="user-{{ user.id }}-temporary_password" type="password" name="user-{{ user.id }}-temporary_password" autocomplete="new-password">
                             </div>
                         {% endif %}
                         <div>
