@@ -20,7 +20,8 @@ if not SECRET_KEY:
     else:
         raise ValueError("SECRET_KEY must be set when DEBUG is False.")
 
-ALLOWED_HOSTS = csv_config("ALLOWED_HOSTS", default="*" if DEBUG else "")
+default_allowed_hosts = "*" if DEBUG else "testserver" if IS_TESTING else ""
+ALLOWED_HOSTS = csv_config("ALLOWED_HOSTS", default=default_allowed_hosts)
 if not DEBUG and not IS_TESTING:
     if not ALLOWED_HOSTS:
         raise ValueError("ALLOWED_HOSTS must be set when DEBUG is False.")
@@ -191,8 +192,8 @@ if USE_S3:
         },
     }
 
-SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG, cast=bool)
-SECURE_REDIRECT_EXEMPT = csv_config("SECURE_REDIRECT_EXEMPT", default="^healthz/$")
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG and not IS_TESTING, cast=bool)
+SECURE_REDIRECT_EXEMPT = csv_config("SECURE_REDIRECT_EXEMPT", default="^/?healthz/$")
 SECURE_PROXY_SSL_HEADER = (
     ("HTTP_X_FORWARDED_PROTO", "https")
     if config("USE_X_FORWARDED_PROTO", default=False, cast=bool)
