@@ -8,10 +8,6 @@ def is_password_setup_required(user):
     return getattr(user, "force_password_change", False)
 
 
-def has_completed_password_setup(user):
-    return not is_password_setup_required(user)
-
-
 def deny_if_password_setup_required(permission, user):
     if is_password_setup_required(user):
         permission.message = TEMPORARY_PASSWORD_MESSAGE
