@@ -19,7 +19,8 @@ class RootAndErrorRoutingTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("dashboard-index"))
 
-    def test_healthz_returns_ok_without_authentication(self):
+    @override_settings(SECURE_SSL_REDIRECT=True, SECURE_REDIRECT_EXEMPT=["^healthz/$"])
+    def test_healthz_returns_ok_without_authentication_when_ssl_redirects_are_enabled(self):
         response = self.client.get(reverse("healthz"))
 
         self.assertEqual(response.status_code, 200)
@@ -42,7 +43,7 @@ class RootAndErrorRoutingTests(TestCase):
 
 
 class ProductionSettingsHelpersTests(SimpleTestCase):
-    def _load_settings_subprocess(self, extra_env):
+    def _load_settings_subprocess(self, extra_env, argv_suffix=None):
         env = os.environ.copy()
         env.update(extra_env)
         env["PYTHONPATH"] = str(settings.BASE_DIR)
@@ -54,7 +55,10 @@ print(json.dumps({
     "csrf_trusted_origins": s.CSRF_TRUSTED_ORIGINS,
     "database_engine": s.DATABASES["default"]["ENGINE"],
     "database_name": s.DATABASES["default"]["NAME"],
-    "database_conn_max_age": s.DATABASES["default"]["CONN_MAX_AGE"],
+    "database_user": s.DATABASES["default"].get("USER"),
+    "database_password": s.DATABASES["default"].get("PASSWORD"),
+    "database_host": s.DATABASES["default"].get("HOST"),
+    "database_conn_max_age": s.DATABASES["default"].get("CONN_MAX_AGE"),
     "database_options": s.DATABASES["default"].get("OPTIONS", {}),
     "use_whitenoise": s.USE_WHITENOISE,
     "middleware": s.MIDDLEWARE,
@@ -70,13 +74,32 @@ print(json.dumps({
     "x_frame_options": s.X_FRAME_OPTIONS,
 }))
 """
+        command = [sys.executable]
+        if argv_suffix:
+            command.extend(argv_suffix)
+        command.extend(["-c", code])
         return subprocess.run(
-            [sys.executable, "-c", code],
+            command,
             cwd=settings.BASE_DIR,
             env=env,
             capture_output=True,
             text=True,
         )
+
+    def _production_env(self, **overrides):
+        env = {
+            "DEBUG": "False",
+            "SECRET_KEY": "production-test-secret",
+            "ALLOWED_HOSTS": "timesheet.example.com,www.timesheet.example.com",
+            "CSRF_TRUSTED_ORIGINS": "https://timesheet.example.com,https://www.timesheet.example.com",
+            "POSTGRES_DB": "timesheet_for_you",
+            "POSTGRES_USER": "timesheet_user",
+            "POSTGRES_PASSWORD": "timesheet_password",
+            "POSTGRES_HOST": "db.example.com",
+            "POSTGRES_PORT": "5432",
+        }
+        env.update(overrides)
+        return env
 
     def test_csv_config_strips_empty_values(self):
         self.assertEqual(
@@ -86,24 +109,15 @@ print(json.dumps({
 
     def test_production_settings_load_from_environment(self):
         result = self._load_settings_subprocess(
-            {
-                "DEBUG": "False",
-                "SECRET_KEY": "production-test-secret",
-                "ALLOWED_HOSTS": "timesheet.example.com,www.timesheet.example.com",
-                "CSRF_TRUSTED_ORIGINS": "https://timesheet.example.com,https://www.timesheet.example.com",
-                "POSTGRES_DB": "timesheet_for_you",
-                "POSTGRES_USER": "timesheet_user",
-                "POSTGRES_PASSWORD": "timesheet_password",
-                "POSTGRES_HOST": "db.example.com",
-                "POSTGRES_PORT": "5432",
-                "DB_CONN_MAX_AGE": "120",
-                "DB_SSL_REQUIRE": "True",
-                "USE_WHITENOISE": "True",
-                "SECURE_SSL_REDIRECT": "True",
-                "SESSION_COOKIE_SECURE": "True",
-                "CSRF_COOKIE_SECURE": "True",
-                "SECURE_HSTS_SECONDS": "31536000",
-            }
+            self._production_env(
+                DB_CONN_MAX_AGE="120",
+                DB_SSL_REQUIRE="True",
+                USE_WHITENOISE="True",
+                SECURE_SSL_REDIRECT="True",
+                SESSION_COOKIE_SECURE="True",
+                CSRF_COOKIE_SECURE="True",
+                SECURE_HSTS_SECONDS="31536000",
+            )
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -118,6 +132,9 @@ print(json.dumps({
         )
         self.assertEqual(loaded["database_engine"], "django.db.backends.postgresql")
         self.assertEqual(loaded["database_name"], "timesheet_for_you")
+        self.assertEqual(loaded["database_user"], "timesheet_user")
+        self.assertEqual(loaded["database_password"], "timesheet_password")
+        self.assertEqual(loaded["database_host"], "db.example.com")
         self.assertEqual(loaded["database_conn_max_age"], 120)
         self.assertEqual(loaded["database_options"], {"sslmode": "require"})
         self.assertTrue(loaded["use_whitenoise"])
@@ -138,13 +155,7 @@ print(json.dumps({
 
     def test_forwarded_proto_trust_is_explicit_opt_in(self):
         result = self._load_settings_subprocess(
-            {
-                "DEBUG": "False",
-                "SECRET_KEY": "production-test-secret",
-                "ALLOWED_HOSTS": "timesheet.example.com",
-                "POSTGRES_DB": "timesheet_for_you",
-                "USE_X_FORWARDED_PROTO": "True",
-            }
+            self._production_env(USE_X_FORWARDED_PROTO="True")
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -153,30 +164,60 @@ print(json.dumps({
 
     def test_production_rejects_wildcard_allowed_hosts(self):
         result = self._load_settings_subprocess(
-            {
-                "DEBUG": "False",
-                "SECRET_KEY": "production-test-secret",
-                "ALLOWED_HOSTS": "*",
-                "POSTGRES_DB": "timesheet_for_you",
-            }
+            self._production_env(ALLOWED_HOSTS="*")
         )
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("ALLOWED_HOSTS cannot include '*'", result.stderr)
 
-    def test_production_requires_database_name(self):
+    def test_test_mode_allows_debug_false_without_production_hosts(self):
         result = self._load_settings_subprocess(
             {
                 "DEBUG": "False",
-                "SECRET_KEY": "production-test-secret",
-                "ALLOWED_HOSTS": "timesheet.example.com",
-                "POSTGRES_DB": "",
-                "DB_NAME": "",
-            }
+                "SECRET_KEY": "",
+                "ALLOWED_HOSTS": "",
+            },
+            argv_suffix=["manage.py", "test"],
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        loaded = json.loads(result.stdout)
+        self.assertEqual(loaded["database_engine"], "django.db.backends.sqlite3")
+
+    def test_production_uses_db_name_when_postgres_db_is_empty(self):
+        result = self._load_settings_subprocess(
+            self._production_env(POSTGRES_DB="", DB_NAME="legacy_timesheet_for_you")
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        loaded = json.loads(result.stdout)
+        self.assertEqual(loaded["database_name"], "legacy_timesheet_for_you")
+
+    def test_production_requires_database_name(self):
+        result = self._load_settings_subprocess(
+            self._production_env(POSTGRES_DB="", DB_NAME="")
         )
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("POSTGRES_DB or DB_NAME must be set", result.stderr)
+
+    def test_production_requires_database_connection_fields(self):
+        result = self._load_settings_subprocess(
+            self._production_env(
+                POSTGRES_USER="",
+                DB_USER="",
+                POSTGRES_PASSWORD="",
+                DB_PASSWORD="",
+                POSTGRES_HOST="",
+                DB_HOST="",
+            )
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Production PostgreSQL configuration is incomplete", result.stderr)
+        self.assertIn("POSTGRES_USER or DB_USER", result.stderr)
+        self.assertIn("POSTGRES_PASSWORD or DB_PASSWORD", result.stderr)
+        self.assertIn("POSTGRES_HOST or DB_HOST", result.stderr)
 
     def test_health_view_response_shape(self):
         response = views.healthz(None)
