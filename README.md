@@ -129,7 +129,7 @@ USE_WHITENOISE=True
 SECURE_SSL_REDIRECT=True
 SESSION_COOKIE_SECURE=True
 CSRF_COOKIE_SECURE=True
-SECURE_REDIRECT_EXEMPT=^healthz/$
+SECURE_REDIRECT_EXEMPT=^/?healthz/$
 SECURE_HSTS_SECONDS=0
 SECURE_HSTS_INCLUDE_SUBDOMAINS=False
 SECURE_HSTS_PRELOAD=False
@@ -165,7 +165,7 @@ The health check endpoint is unauthenticated and returns JSON at `/healthz/`:
 
 Use it for load balancer or platform health checks. It intentionally does not touch the database, so it confirms that Django can boot and route requests without making the app unhealthy during transient database maintenance.
 
-`/healthz/` is included in `SECURE_REDIRECT_EXEMPT` by default so HTTP platform probes can receive a 200 response even when `SECURE_SSL_REDIRECT=True`. If your platform supports HTTPS health probes instead, you may remove that exemption and probe the HTTPS endpoint.
+`/healthz/` is included in `SECURE_REDIRECT_EXEMPT` by default so HTTP platform probes can receive a 200 response even when `SECURE_SSL_REDIRECT=True`. The default pattern, `^/?healthz/$`, matches both slash-prefixed and slash-stripped request paths. If your platform supports HTTPS health probes instead, you may remove that exemption and probe the HTTPS endpoint.
 
 Health probes must still send a `Host` header that matches `ALLOWED_HOSTS`, because Django validates the host before URL routing. Configure the probe to use the public production hostname, or add the probe's internal hostname to `ALLOWED_HOSTS`.
 
