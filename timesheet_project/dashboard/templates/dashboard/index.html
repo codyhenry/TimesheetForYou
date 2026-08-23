@@ -250,8 +250,8 @@
                 <h3 class="section-heading">Request Incentive Details</h3>
                 {% for group in timesheet.dashboard_request_incentive_groups %}
                     <div class="incentive-card">
-                        <strong>Milestone {{ forloop.counter }}</strong>
-                        <div class="muted">This timesheet completed a 5-request incentive group.</div>
+                        <strong>Incentive {{ group.incentive_number }}</strong>
+                        <div class="muted">This timesheet completed lifetime request #{{ group.milestone_request_number }}.</div>
                         <ul>
                             {% for item in group.entries %}
                                 <li>#{{ item.request_number }} — {{ item.work_date }} — {{ item.family_name }}</li>
@@ -265,7 +265,8 @@
                 <h3 class="section-heading">Admin Notes</h3>
                 <form method="post" action="{% url 'dashboard-notes' timesheet.id %}">
                     {% csrf_token %}
-                    <textarea name="admin_notes">{{ timesheet.admin_notes }}</textarea>
+                    <label for="admin_notes_{{ timesheet.id }}">Admin Notes</label>
+                    <textarea id="admin_notes_{{ timesheet.id }}" name="admin_notes">{{ timesheet.admin_notes }}</textarea>
                     <p><button type="submit">Save Notes</button></p>
                 </form>
             </div>
@@ -284,9 +285,12 @@
             });
         });
 
-        const openModal = (id) => {
+        const lastFocusedElements = new Map();
+
+        const openModal = (id, opener) => {
             const modal = document.getElementById(id);
             if (!modal) return;
+            if (opener) lastFocusedElements.set(id, opener);
             modal.classList.add('is-open');
             modal.setAttribute('aria-hidden', 'false');
             document.body.classList.add('modal-open');
@@ -302,10 +306,15 @@
             if (!document.querySelector('.modal-backdrop.is-open')) {
                 document.body.classList.remove('modal-open');
             }
+            const opener = lastFocusedElements.get(id);
+            lastFocusedElements.delete(id);
+            if (opener && typeof opener.focus === 'function' && document.contains(opener)) {
+                opener.focus();
+            }
         };
 
         document.querySelectorAll('.open-modal').forEach((button) => {
-            button.addEventListener('click', () => openModal(button.dataset.target));
+            button.addEventListener('click', () => openModal(button.dataset.target, button));
         });
 
         document.querySelectorAll('.modal-close').forEach((button) => {
