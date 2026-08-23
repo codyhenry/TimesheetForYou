@@ -17,6 +17,8 @@ class DashboardManagedUserCreateForm(forms.ModelForm):
         strip=False,
     )
 
+    role = forms.ChoiceField(choices=MANAGED_ROLE_CHOICES)
+
     class Meta:
         model = User
         fields = [
@@ -30,10 +32,8 @@ class DashboardManagedUserCreateForm(forms.ModelForm):
             "is_active",
         ]
         widgets = {
-            "email": forms.EmailInput,
+            "email": forms.EmailInput(),
         }
-
-    role = forms.ChoiceField(choices=MANAGED_ROLE_CHOICES)
 
     def clean_password(self):
         password = self.cleaned_data["password"]
@@ -60,6 +60,8 @@ class DashboardManagedUserUpdateForm(forms.ModelForm):
         strip=False,
     )
 
+    role = forms.ChoiceField(choices=MANAGED_ROLE_CHOICES)
+
     class Meta:
         model = User
         fields = [
@@ -73,10 +75,8 @@ class DashboardManagedUserUpdateForm(forms.ModelForm):
             "password",
         ]
         widgets = {
-            "email": forms.EmailInput,
+            "email": forms.EmailInput(),
         }
-
-    role = forms.ChoiceField(choices=MANAGED_ROLE_CHOICES)
 
     def clean_password(self):
         password = self.cleaned_data.get("password")
