@@ -13,10 +13,14 @@ function RootLayoutNav() {
       return;
     }
 
-    const inAuthRoute = segments[0] === "login";
-    if (!user && !inAuthRoute) {
+    const inLoginRoute = segments[0] === "login";
+    const inPasswordSetupRoute = segments[0] === "password-setup";
+
+    if (!user && !inLoginRoute) {
       router.replace("/login");
-    } else if (user && inAuthRoute) {
+    } else if (user?.force_password_change && !inPasswordSetupRoute) {
+      router.replace("/password-setup");
+    } else if (user && !user.force_password_change && (inLoginRoute || inPasswordSetupRoute)) {
       router.replace("/timesheets/current");
     }
   }, [loading, router, segments, user]);
@@ -34,6 +38,10 @@ function RootLayoutNav() {
       <Stack.Screen
         name="login"
         options={{ title: "Login", headerShown: false }}
+      />
+      <Stack.Screen
+        name="password-setup"
+        options={{ title: "Set Password", headerShown: false }}
       />
       <Stack.Screen name="timesheets" options={{ headerShown: false }} />
       <Stack.Screen name="entries" options={{ headerShown: false }} />

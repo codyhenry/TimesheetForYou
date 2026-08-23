@@ -1,6 +1,8 @@
 from decimal import Decimal
 
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.forms import PasswordChangeForm
 from django.db.models import Count, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -19,6 +21,16 @@ from timesheets.services import (
 dashboard_user_required = user_passes_test(
     lambda user: user.is_authenticated and getattr(user, "can_access_dashboard", False)
 )
+
+
+def _dashboard_password_ready_required(view_func):
+    @dashboard_user_required
+    def wrapped(request, *args, **kwargs):
+        if getattr(request.user, "force_password_change", False):
+            return redirect("dashboard-password-setup")
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
 
 
 INDICATOR_DEFINITIONS = {
@@ -198,6 +210,22 @@ def _prepare_dashboard_timesheets(queryset):
 
 
 @dashboard_user_required
+def password_setup(request):
+    if not getattr(request.user, "force_password_change", False):
+        return redirect("dashboard-index")
+
+    form = PasswordChangeForm(request.user, request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        user = form.save()
+        user.force_password_change = False
+        user.save(update_fields=["force_password_change"])
+        update_session_auth_hash(request, user)
+        return redirect("dashboard-index")
+
+    return render(request, "dashboard/password_setup.html", {"form": form})
+
+
+@_dashboard_password_ready_required
 def index(request, timesheet_id=None):
     queryset = _filtered_queryset(request)
 
@@ -218,7 +246,7 @@ def index(request, timesheet_id=None):
     )
 
 
-@dashboard_user_required
+@_dashboard_password_ready_required
 def update_notes(request, timesheet_id):
     timesheet = get_object_or_404(WeeklyTimesheet.objects.filter(
         submission__isnull=False), pk=timesheet_id)

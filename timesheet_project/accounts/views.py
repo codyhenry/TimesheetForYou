@@ -1,11 +1,16 @@
-from rest_framework import mixins, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import User
 from .permissions import IsAdmin
-from .serializers import CurrentUserSerializer, DashboardUserSerializer, NannySerializer
+from .serializers import (
+    ChangePasswordSerializer,
+    CurrentUserSerializer,
+    DashboardUserSerializer,
+    NannySerializer,
+)
 
 
 class CurrentUserView(APIView):
@@ -13,6 +18,22 @@ class CurrentUserView(APIView):
 
     def get(self, request):
         return Response(CurrentUserSerializer(request.user).data)
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(
+            {
+                "detail": "Password changed successfully.",
+                "user": CurrentUserSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class NannyManagementViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):

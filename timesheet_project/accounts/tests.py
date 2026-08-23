@@ -51,6 +51,44 @@ class DashboardBrowserAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
+    def test_dashboard_user_with_temporary_password_is_redirected_to_setup(self):
+        office = User.objects.create_user(
+            username="office-temp",
+            password="TemporaryPass123!",
+            role=User.Role.OFFICE,
+            force_password_change=True,
+        )
+        self.client.force_login(office)
+
+        response = self.client.get(reverse("dashboard-index"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("dashboard-password-setup"))
+
+    def test_dashboard_password_setup_clears_force_flag(self):
+        office = User.objects.create_user(
+            username="office-temp",
+            password="TemporaryPass123!",
+            role=User.Role.OFFICE,
+            force_password_change=True,
+        )
+        self.client.force_login(office)
+
+        response = self.client.post(
+            reverse("dashboard-password-setup"),
+            {
+                "old_password": "TemporaryPass123!",
+                "new_password1": "PermanentPass123!",
+                "new_password2": "PermanentPass123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("dashboard-index"))
+        office.refresh_from_db()
+        self.assertFalse(office.force_password_change)
+        self.assertTrue(office.check_password("PermanentPass123!"))
+
     def test_nanny_user_is_redirected_from_dashboard_page(self):
         nanny = User.objects.create_user(
             username="nanny",
@@ -93,12 +131,70 @@ class RoleAccessAPITests(APITestCase):
         self.assertFalse(response.data["can_access_django_admin"])
         self.assertFalse(response.data["force_password_change"])
 
+    def test_change_password_clears_force_flag(self):
+        self.nanny.force_password_change = True
+        self.nanny.save(update_fields=["force_password_change"])
+        self.client.force_authenticate(user=self.nanny)
+
+        response = self.client.post(
+            reverse("change-password"),
+            {
+                "current_password": "StrongTestPass123!",
+                "new_password": "NewStrongPass123!",
+                "confirm_password": "NewStrongPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.nanny.refresh_from_db()
+        self.assertFalse(self.nanny.force_password_change)
+        self.assertTrue(self.nanny.check_password("NewStrongPass123!"))
+        self.assertFalse(response.data["user"]["force_password_change"])
+
+    def test_change_password_rejects_bad_current_password(self):
+        self.client.force_authenticate(user=self.nanny)
+
+        response = self.client.post(
+            reverse("change-password"),
+            {
+                "current_password": "WrongPass123!",
+                "new_password": "NewStrongPass123!",
+                "confirm_password": "NewStrongPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("current_password", response.data)
+
+    def test_forced_password_user_can_read_me_but_cannot_use_timesheets(self):
+        self.nanny.force_password_change = True
+        self.nanny.save(update_fields=["force_password_change"])
+        self.client.force_authenticate(user=self.nanny)
+
+        me_response = self.client.get(reverse("current-user"))
+        timesheet_response = self.client.get(reverse("timesheet-current"))
+
+        self.assertEqual(me_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(me_response.data["force_password_change"])
+        self.assertEqual(timesheet_response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_office_user_can_access_admin_timesheet_api(self):
         self.client.force_authenticate(user=self.office)
 
         response = self.client.get(reverse("admin-timesheet-list"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_forced_password_office_user_cannot_access_admin_timesheet_api(self):
+        self.office.force_password_change = True
+        self.office.save(update_fields=["force_password_change"])
+        self.client.force_authenticate(user=self.office)
+
+        response = self.client.get(reverse("admin-timesheet-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_nanny_cannot_access_admin_timesheet_api(self):
         self.client.force_authenticate(user=self.nanny)
