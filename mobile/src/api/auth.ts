@@ -65,3 +65,16 @@ export const getCurrentUser = async (): Promise<User> => {
   const response = await client.get("/api/auth/me/");
   return normalizeUser(response.data as ApiUser);
 };
+
+export const changePassword = async (
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string,
+): Promise<User> => {
+  const response = await client.post("/api/auth/password/", {
+    current_password: currentPassword,
+    new_password: newPassword,
+    confirm_password: confirmPassword,
+  });
+  return normalizeUser(response.data.user as ApiUser);
+};
