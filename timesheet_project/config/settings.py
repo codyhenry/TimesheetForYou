@@ -28,6 +28,8 @@ if not DEBUG and not IS_TESTING:
         raise ValueError("ALLOWED_HOSTS cannot include '*' when DEBUG is False.")
 
 CSRF_TRUSTED_ORIGINS = csv_config("CSRF_TRUSTED_ORIGINS")
+if not DEBUG and not IS_TESTING and not CSRF_TRUSTED_ORIGINS:
+    raise ValueError("CSRF_TRUSTED_ORIGINS must be set when DEBUG is False.")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
