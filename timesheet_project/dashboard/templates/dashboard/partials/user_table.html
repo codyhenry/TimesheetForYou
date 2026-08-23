@@ -16,6 +16,7 @@
                     <span class="muted">{{ user.username }}</span><br>
                     {% if user.email %}<span class="muted">{{ user.email }}</span><br>{% endif %}
                     {% if user.phone %}<span class="muted">{{ user.phone }}</span>{% endif %}
+                    {% if user.is_staff %}<br><span class="muted">Django staff access preserved</span>{% endif %}
                 </td>
                 <td><span class="role-pill">{{ user.get_role_display }}</span></td>
                 <td>
@@ -84,40 +85,40 @@
                             {% endif %}
                         {% else %}
                             <div>
-                                <label for="first_name_{{ user.id }}">First</label>
-                                <input id="first_name_{{ user.id }}" name="first_name" value="{{ user.first_name }}">
+                                <label for="user-{{ user.id }}-first_name">First</label>
+                                <input id="user-{{ user.id }}-first_name" name="user-{{ user.id }}-first_name" value="{{ user.first_name }}">
                             </div>
                             <div>
-                                <label for="last_name_{{ user.id }}">Last</label>
-                                <input id="last_name_{{ user.id }}" name="last_name" value="{{ user.last_name }}">
+                                <label for="user-{{ user.id }}-last_name">Last</label>
+                                <input id="user-{{ user.id }}-last_name" name="user-{{ user.id }}-last_name" value="{{ user.last_name }}">
                             </div>
                             <div>
-                                <label for="email_{{ user.id }}">Email</label>
-                                <input id="email_{{ user.id }}" type="email" name="email" value="{{ user.email }}">
+                                <label for="user-{{ user.id }}-email">Email</label>
+                                <input id="user-{{ user.id }}-email" type="email" name="user-{{ user.id }}-email" value="{{ user.email }}">
                             </div>
                             <div>
-                                <label for="phone_{{ user.id }}">Phone</label>
-                                <input id="phone_{{ user.id }}" name="phone" value="{{ user.phone }}">
+                                <label for="user-{{ user.id }}-phone">Phone</label>
+                                <input id="user-{{ user.id }}-phone" name="user-{{ user.id }}-phone" value="{{ user.phone }}">
                             </div>
                             <div>
-                                <label for="role_{{ user.id }}">Role</label>
-                                <select id="role_{{ user.id }}" name="role">
+                                <label for="user-{{ user.id }}-role">Role</label>
+                                <select id="user-{{ user.id }}-role" name="user-{{ user.id }}-role">
                                     {% for value, label in role_choices %}
                                         <option value="{{ value }}" {% if user.role == value %}selected{% endif %}>{{ label }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                             <div class="checkbox-row">
-                                <input id="is_active_{{ user.id }}" type="checkbox" name="is_active" {% if user.is_active %}checked{% endif %}>
-                                <label for="is_active_{{ user.id }}">Active</label>
+                                <input id="user-{{ user.id }}-is_active" type="checkbox" name="user-{{ user.id }}-is_active" {% if user.is_active %}checked{% endif %}>
+                                <label for="user-{{ user.id }}-is_active">Active</label>
                             </div>
                             <div class="checkbox-row">
-                                <input id="force_password_change_{{ user.id }}" type="checkbox" name="force_password_change" {% if user.force_password_change %}checked{% endif %}>
-                                <label for="force_password_change_{{ user.id }}">Force password setup</label>
+                                <input id="user-{{ user.id }}-force_password_change" type="checkbox" name="user-{{ user.id }}-force_password_change" {% if user.force_password_change %}checked{% endif %}>
+                                <label for="user-{{ user.id }}-force_password_change">Force password setup</label>
                             </div>
                             <div class="wide">
-                                <label for="password_{{ user.id }}">Temporary password reset</label>
-                                <input id="password_{{ user.id }}" type="password" name="password" autocomplete="new-password">
+                                <label for="user-{{ user.id }}-password">Temporary password reset</label>
+                                <input id="user-{{ user.id }}-password" type="password" name="user-{{ user.id }}-password" autocomplete="new-password">
                             </div>
                         {% endif %}
                         <div>
