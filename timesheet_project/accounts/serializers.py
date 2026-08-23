@@ -1,3 +1,4 @@
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from .models import User
@@ -23,6 +24,31 @@ class CurrentUserSerializer(serializers.ModelSerializer):
             "can_access_dashboard",
             "can_access_django_admin",
         ]
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate_current_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        validate_password(attrs["new_password"], self.context["request"].user)
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
+        user.force_password_change = False
+        user.save(update_fields=["password", "force_password_change"])
+        return user
 
 
 class NannySerializer(serializers.ModelSerializer):
