@@ -20,8 +20,11 @@ if not SECRET_KEY:
         raise ValueError("SECRET_KEY must be set when DEBUG is False.")
 
 ALLOWED_HOSTS = csv_config("ALLOWED_HOSTS", default="*" if DEBUG else "")
-if not DEBUG and not ALLOWED_HOSTS:
-    raise ValueError("ALLOWED_HOSTS must be set when DEBUG is False.")
+if not DEBUG:
+    if not ALLOWED_HOSTS:
+        raise ValueError("ALLOWED_HOSTS must be set when DEBUG is False.")
+    if "*" in ALLOWED_HOSTS:
+        raise ValueError("ALLOWED_HOSTS cannot include '*' when DEBUG is False.")
 
 CSRF_TRUSTED_ORIGINS = csv_config("CSRF_TRUSTED_ORIGINS")
 
@@ -102,6 +105,8 @@ else:
         }
         if config("DB_SSL_REQUIRE", default=False, cast=bool):
             DATABASES["default"]["OPTIONS"] = {"sslmode": "require"}
+    elif not DEBUG:
+        raise ValueError("POSTGRES_DB or DB_NAME must be set when DEBUG is False.")
     else:
         DATABASES = {
             "default": {
@@ -162,9 +167,10 @@ if USE_S3:
     }
 
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG, cast=bool)
+SECURE_REDIRECT_EXEMPT = csv_config("SECURE_REDIRECT_EXEMPT", default="^healthz/$")
 SECURE_PROXY_SSL_HEADER = (
     ("HTTP_X_FORWARDED_PROTO", "https")
-    if config("USE_X_FORWARDED_PROTO", default=not DEBUG, cast=bool)
+    if config("USE_X_FORWARDED_PROTO", default=False, cast=bool)
     else None
 )
 SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=not DEBUG, cast=bool)
