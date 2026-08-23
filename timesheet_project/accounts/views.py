@@ -53,6 +53,7 @@ class DashboardUserManagementViewSet(
 ):
     serializer_class = DashboardUserSerializer
     permission_classes = [IsAdmin]
-    queryset = User.objects.filter(role__in=[User.Role.OFFICE, User.Role.ADMIN]).order_by(
-        "role", "first_name", "last_name", "username"
-    )
+    queryset = User.objects.filter(
+        role__in=[User.Role.OFFICE, User.Role.ADMIN],
+        is_superuser=False,
+    ).order_by("role", "first_name", "last_name", "username")
