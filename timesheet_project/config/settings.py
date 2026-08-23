@@ -6,6 +6,11 @@ from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def csv_config(name, default=""):
+    return [value.strip() for value in str(config(name, default=default)).split(",") if value.strip()]
+
+
 DEBUG = config("DEBUG", default=True, cast=bool)
 SECRET_KEY = config("SECRET_KEY", default=None)
 if not SECRET_KEY:
@@ -13,8 +18,12 @@ if not SECRET_KEY:
         SECRET_KEY = "django-insecure-timesheetforyou-dev-key"
     else:
         raise ValueError("SECRET_KEY must be set when DEBUG is False.")
-ALLOWED_HOSTS = [host.strip() for host in str(
-    config("ALLOWED_HOSTS", default="*")).split(",") if host.strip()]
+
+ALLOWED_HOSTS = csv_config("ALLOWED_HOSTS", default="*" if DEBUG else "")
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ValueError("ALLOWED_HOSTS must be set when DEBUG is False.")
+
+CSRF_TRUSTED_ORIGINS = csv_config("CSRF_TRUSTED_ORIGINS")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -33,6 +42,13 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+]
+
+USE_WHITENOISE = config("USE_WHITENOISE", default=not DEBUG, cast=bool)
+if USE_WHITENOISE:
+    MIDDLEWARE.append("whitenoise.middleware.WhiteNoiseMiddleware")
+
+MIDDLEWARE += [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -81,8 +97,11 @@ else:
                 "PASSWORD": config("POSTGRES_PASSWORD", default=config("DB_PASSWORD", default="postgres")),
                 "HOST": config("POSTGRES_HOST", default=config("DB_HOST", default="localhost")),
                 "PORT": config("POSTGRES_PORT", default=config("DB_PORT", default="5432")),
+                "CONN_MAX_AGE": config("DB_CONN_MAX_AGE", default=60, cast=int),
             }
         }
+        if config("DB_SSL_REQUIRE", default=False, cast=bool):
+            DATABASES["default"]["OPTIONS"] = {"sslmode": "require"}
     else:
         DATABASES = {
             "default": {
@@ -109,7 +128,9 @@ STORAGES = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        if USE_WHITENOISE
+        else "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
 
@@ -139,6 +160,21 @@ if USE_S3:
             "object_parameters": AWS_S3_OBJECT_PARAMETERS,
         },
     }
+
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG, cast=bool)
+SECURE_PROXY_SSL_HEADER = (
+    ("HTTP_X_FORWARDED_PROTO", "https")
+    if config("USE_X_FORWARDED_PROTO", default=not DEBUG, cast=bool)
+    else None
+)
+SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=not DEBUG, cast=bool)
+CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=not DEBUG, cast=bool)
+SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=31536000 if not DEBUG else 0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False, cast=bool)
+SECURE_HSTS_PRELOAD = config("SECURE_HSTS_PRELOAD", default=False, cast=bool)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = config("SECURE_REFERRER_POLICY", default="same-origin")
+X_FRAME_OPTIONS = "DENY"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
