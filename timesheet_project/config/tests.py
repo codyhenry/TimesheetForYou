@@ -1,3 +1,8 @@
+import json
+import os
+import subprocess
+import sys
+
 from django.conf import settings
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
@@ -37,51 +42,141 @@ class RootAndErrorRoutingTests(TestCase):
 
 
 class ProductionSettingsHelpersTests(SimpleTestCase):
+    def _load_settings_subprocess(self, extra_env):
+        env = os.environ.copy()
+        env.update(extra_env)
+        env["PYTHONPATH"] = str(settings.BASE_DIR)
+        code = """
+import json
+import config.settings as s
+print(json.dumps({
+    "allowed_hosts": s.ALLOWED_HOSTS,
+    "csrf_trusted_origins": s.CSRF_TRUSTED_ORIGINS,
+    "database_engine": s.DATABASES["default"]["ENGINE"],
+    "database_name": s.DATABASES["default"]["NAME"],
+    "database_conn_max_age": s.DATABASES["default"]["CONN_MAX_AGE"],
+    "database_options": s.DATABASES["default"].get("OPTIONS", {}),
+    "use_whitenoise": s.USE_WHITENOISE,
+    "middleware": s.MIDDLEWARE,
+    "staticfiles_backend": s.STORAGES["staticfiles"]["BACKEND"],
+    "secure_ssl_redirect": s.SECURE_SSL_REDIRECT,
+    "secure_redirect_exempt": s.SECURE_REDIRECT_EXEMPT,
+    "secure_proxy_ssl_header": s.SECURE_PROXY_SSL_HEADER,
+    "session_cookie_secure": s.SESSION_COOKIE_SECURE,
+    "csrf_cookie_secure": s.CSRF_COOKIE_SECURE,
+    "secure_hsts_seconds": s.SECURE_HSTS_SECONDS,
+    "secure_content_type_nosniff": s.SECURE_CONTENT_TYPE_NOSNIFF,
+    "secure_referrer_policy": s.SECURE_REFERRER_POLICY,
+    "x_frame_options": s.X_FRAME_OPTIONS,
+}))
+"""
+        return subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=settings.BASE_DIR,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
     def test_csv_config_strips_empty_values(self):
         self.assertEqual(
             csv_config("TEST_CSV_SETTING", default=" one.example.com, two.example.com ,, "),
             ["one.example.com", "two.example.com"],
         )
 
-    @override_settings(
-        DEBUG=False,
-        USE_WHITENOISE=True,
-        MIDDLEWARE=[
-            "django.middleware.security.SecurityMiddleware",
-            "whitenoise.middleware.WhiteNoiseMiddleware",
-            "django.contrib.sessions.middleware.SessionMiddleware",
-        ],
-        STORAGES={
-            "default": {
-                "BACKEND": "django.core.files.storage.FileSystemStorage",
-            },
-            "staticfiles": {
-                "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-            },
-        },
-        SECURE_SSL_REDIRECT=True,
-        SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
-        SESSION_COOKIE_SECURE=True,
-        CSRF_COOKIE_SECURE=True,
-        SECURE_HSTS_SECONDS=31536000,
-        SECURE_CONTENT_TYPE_NOSNIFF=True,
-        SECURE_REFERRER_POLICY="same-origin",
-        X_FRAME_OPTIONS="DENY",
-    )
-    def test_production_security_and_static_settings(self):
-        self.assertIn("whitenoise.middleware.WhiteNoiseMiddleware", settings.MIDDLEWARE)
+    def test_production_settings_load_from_environment(self):
+        result = self._load_settings_subprocess(
+            {
+                "DEBUG": "False",
+                "SECRET_KEY": "production-test-secret",
+                "ALLOWED_HOSTS": "timesheet.example.com,www.timesheet.example.com",
+                "CSRF_TRUSTED_ORIGINS": "https://timesheet.example.com,https://www.timesheet.example.com",
+                "POSTGRES_DB": "timesheet_for_you",
+                "POSTGRES_USER": "timesheet_user",
+                "POSTGRES_PASSWORD": "timesheet_password",
+                "POSTGRES_HOST": "db.example.com",
+                "POSTGRES_PORT": "5432",
+                "DB_CONN_MAX_AGE": "120",
+                "DB_SSL_REQUIRE": "True",
+                "USE_WHITENOISE": "True",
+                "SECURE_SSL_REDIRECT": "True",
+                "SESSION_COOKIE_SECURE": "True",
+                "CSRF_COOKIE_SECURE": "True",
+                "SECURE_HSTS_SECONDS": "31536000",
+            }
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        loaded = json.loads(result.stdout)
         self.assertEqual(
-            settings.STORAGES["staticfiles"]["BACKEND"],
+            loaded["allowed_hosts"],
+            ["timesheet.example.com", "www.timesheet.example.com"],
+        )
+        self.assertEqual(
+            loaded["csrf_trusted_origins"],
+            ["https://timesheet.example.com", "https://www.timesheet.example.com"],
+        )
+        self.assertEqual(loaded["database_engine"], "django.db.backends.postgresql")
+        self.assertEqual(loaded["database_name"], "timesheet_for_you")
+        self.assertEqual(loaded["database_conn_max_age"], 120)
+        self.assertEqual(loaded["database_options"], {"sslmode": "require"})
+        self.assertTrue(loaded["use_whitenoise"])
+        self.assertIn("whitenoise.middleware.WhiteNoiseMiddleware", loaded["middleware"])
+        self.assertEqual(
+            loaded["staticfiles_backend"],
             "whitenoise.storage.CompressedManifestStaticFilesStorage",
         )
-        self.assertTrue(settings.SECURE_SSL_REDIRECT)
-        self.assertEqual(settings.SECURE_PROXY_SSL_HEADER, ("HTTP_X_FORWARDED_PROTO", "https"))
-        self.assertTrue(settings.SESSION_COOKIE_SECURE)
-        self.assertTrue(settings.CSRF_COOKIE_SECURE)
-        self.assertEqual(settings.SECURE_HSTS_SECONDS, 31536000)
-        self.assertTrue(settings.SECURE_CONTENT_TYPE_NOSNIFF)
-        self.assertEqual(settings.SECURE_REFERRER_POLICY, "same-origin")
-        self.assertEqual(settings.X_FRAME_OPTIONS, "DENY")
+        self.assertTrue(loaded["secure_ssl_redirect"])
+        self.assertEqual(loaded["secure_redirect_exempt"], ["^healthz/$"])
+        self.assertIsNone(loaded["secure_proxy_ssl_header"])
+        self.assertTrue(loaded["session_cookie_secure"])
+        self.assertTrue(loaded["csrf_cookie_secure"])
+        self.assertEqual(loaded["secure_hsts_seconds"], 31536000)
+        self.assertTrue(loaded["secure_content_type_nosniff"])
+        self.assertEqual(loaded["secure_referrer_policy"], "same-origin")
+        self.assertEqual(loaded["x_frame_options"], "DENY")
+
+    def test_forwarded_proto_trust_is_explicit_opt_in(self):
+        result = self._load_settings_subprocess(
+            {
+                "DEBUG": "False",
+                "SECRET_KEY": "production-test-secret",
+                "ALLOWED_HOSTS": "timesheet.example.com",
+                "POSTGRES_DB": "timesheet_for_you",
+                "USE_X_FORWARDED_PROTO": "True",
+            }
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        loaded = json.loads(result.stdout)
+        self.assertEqual(loaded["secure_proxy_ssl_header"], ["HTTP_X_FORWARDED_PROTO", "https"])
+
+    def test_production_rejects_wildcard_allowed_hosts(self):
+        result = self._load_settings_subprocess(
+            {
+                "DEBUG": "False",
+                "SECRET_KEY": "production-test-secret",
+                "ALLOWED_HOSTS": "*",
+                "POSTGRES_DB": "timesheet_for_you",
+            }
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("ALLOWED_HOSTS cannot include '*'", result.stderr)
+
+    def test_production_requires_database_name(self):
+        result = self._load_settings_subprocess(
+            {
+                "DEBUG": "False",
+                "SECRET_KEY": "production-test-secret",
+                "ALLOWED_HOSTS": "timesheet.example.com",
+                "POSTGRES_DB": "",
+                "DB_NAME": "",
+            }
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("POSTGRES_DB or DB_NAME must be set", result.stderr)
 
     def test_health_view_response_shape(self):
         response = views.healthz(None)
