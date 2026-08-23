@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.forms import PasswordChangeForm
@@ -221,7 +220,6 @@ def password_setup(request):
         user.force_password_change = False
         user.save(update_fields=["force_password_change"])
         update_session_auth_hash(request, user)
-        messages.success(request, "Password changed successfully.")
         return redirect("dashboard-index")
 
     return render(request, "dashboard/password_setup.html", {"form": form})
