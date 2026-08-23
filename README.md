@@ -77,6 +77,7 @@ Useful backend URLs:
 - API token endpoint: `http://localhost:8000/api/token/`
 - API token refresh endpoint: `http://localhost:8000/api/token/refresh/`
 - Dashboard: `http://localhost:8000/dashboard/`
+- Health check: `http://localhost:8000/healthz/`
 
 ## Optional Backend Environment Variables
 
@@ -95,6 +96,81 @@ POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 ```
 
+## Production Deployment Configuration
+
+Production should run with `DEBUG=False`, a strong `SECRET_KEY`, explicit host/origin allowlists, PostgreSQL, collected static files, and HTTPS-only cookies.
+
+Required production environment variables:
+
+```env
+DEBUG=False
+SECRET_KEY=replace-with-a-long-random-secret
+ALLOWED_HOSTS=timesheet.example.com,www.timesheet.example.com
+CSRF_TRUSTED_ORIGINS=https://timesheet.example.com,https://www.timesheet.example.com
+POSTGRES_DB=timesheet_for_you
+POSTGRES_USER=timesheet_for_you
+POSTGRES_PASSWORD=replace-with-database-password
+POSTGRES_HOST=replace-with-database-host
+POSTGRES_PORT=5432
+```
+
+Recommended production environment variables:
+
+```env
+DB_CONN_MAX_AGE=60
+DB_SSL_REQUIRE=True
+USE_WHITENOISE=True
+SECURE_SSL_REDIRECT=True
+USE_X_FORWARDED_PROTO=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+SECURE_HSTS_SECONDS=31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS=False
+SECURE_HSTS_PRELOAD=False
+SECURE_REFERRER_POLICY=same-origin
+```
+
+Use `USE_X_FORWARDED_PROTO=True` when Django is behind a trusted HTTPS-terminating proxy or load balancer that sets `X-Forwarded-Proto: https`.
+
+Static files are served through WhiteNoise when `USE_WHITENOISE=True`. Run this during deployment after installing dependencies and before starting the web process:
+
+```bash
+cd timesheet_project
+python manage.py collectstatic --noinput
+```
+
+Suggested production release sequence:
+
+```bash
+cd timesheet_project
+pip install -r requirements.txt
+python manage.py migrate --noinput
+python manage.py collectstatic --noinput
+python manage.py check --deploy
+```
+
+The health check endpoint is unauthenticated and returns JSON at `/healthz/`:
+
+```json
+{"status": "ok"}
+```
+
+Use it for load balancer or platform health checks. It intentionally does not touch the database, so it confirms that Django can boot and route requests without making the app unhealthy during transient database maintenance.
+
+### Production Checklist
+
+- Set `DEBUG=False`.
+- Set a unique production `SECRET_KEY`.
+- Set `ALLOWED_HOSTS` to the exact production domains.
+- Set `CSRF_TRUSTED_ORIGINS` to the exact HTTPS origins used by dashboard/browser clients.
+- Run PostgreSQL in production; SQLite is only for local development.
+- Run `migrate` and `collectstatic` during deployment.
+- Serve the app behind HTTPS.
+- Keep `SESSION_COOKIE_SECURE=True` and `CSRF_COOKIE_SECURE=True` in production.
+- Keep `SECURE_SSL_REDIRECT=True` unless HTTPS redirection is handled before traffic reaches Django.
+- Set `USE_X_FORWARDED_PROTO=True` only behind a trusted proxy that sets `X-Forwarded-Proto` correctly.
+- Run `python manage.py check --deploy` before promoting a release.
+
 ## Optional S3 Media Storage
 
 Local development uses the filesystem under `timesheet_project/media/` by default.
@@ -112,7 +188,7 @@ AWS_S3_FILE_OVERWRITE=False
 AWS_S3_CACHE_CONTROL=private, max-age=300
 ```
 
-AWS credentials should be provided by the runtime environment, such as an IAM role or the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables. The app only needs object-level access to an existing bucket; it does not create AWS infrastructure at runtime.
+AWS credentials should be provided by the runtime environment, such as an IAM role or the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables. The app only needs object-level access to the configured media prefix in an existing bucket; it does not create AWS infrastructure at runtime.
 
 Example least-privilege IAM policy:
 
@@ -121,16 +197,10 @@ Example least-privilege IAM policy:
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "TimesheetMediaBucketList",
-      "Effect": "Allow",
-      "Action": ["s3:ListBucket"],
-      "Resource": "arn:aws:s3:::timesheet-for-you-prod-media"
-    },
-    {
       "Sid": "TimesheetMediaObjectAccess",
       "Effect": "Allow",
       "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-      "Resource": "arn:aws:s3:::timesheet-for-you-prod-media/*"
+      "Resource": "arn:aws:s3:::timesheet-for-you-prod-media/media/*"
     }
   ]
 }
