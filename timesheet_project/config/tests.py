@@ -54,7 +54,7 @@ print(json.dumps({
     "allowed_hosts": s.ALLOWED_HOSTS,
     "csrf_trusted_origins": s.CSRF_TRUSTED_ORIGINS,
     "database_engine": s.DATABASES["default"]["ENGINE"],
-    "database_name": s.DATABASES["default"]["NAME"],
+    "database_name": str(s.DATABASES["default"]["NAME"]),
     "database_user": s.DATABASES["default"].get("USER"),
     "database_password": s.DATABASES["default"].get("PASSWORD"),
     "database_host": s.DATABASES["default"].get("HOST"),
@@ -74,10 +74,9 @@ print(json.dumps({
     "x_frame_options": s.X_FRAME_OPTIONS,
 }))
 """
-        command = [sys.executable]
+        command = [sys.executable, "-c", code]
         if argv_suffix:
             command.extend(argv_suffix)
-        command.extend(["-c", code])
         return subprocess.run(
             command,
             cwd=settings.BASE_DIR,
@@ -170,12 +169,21 @@ print(json.dumps({
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("ALLOWED_HOSTS cannot include '*'", result.stderr)
 
+    def test_production_requires_csrf_trusted_origins(self):
+        result = self._load_settings_subprocess(
+            self._production_env(CSRF_TRUSTED_ORIGINS="")
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("CSRF_TRUSTED_ORIGINS must be set", result.stderr)
+
     def test_test_mode_allows_debug_false_without_production_hosts(self):
         result = self._load_settings_subprocess(
             {
                 "DEBUG": "False",
                 "SECRET_KEY": "",
                 "ALLOWED_HOSTS": "",
+                "CSRF_TRUSTED_ORIGINS": "",
             },
             argv_suffix=["manage.py", "test"],
         )
@@ -183,6 +191,7 @@ print(json.dumps({
         self.assertEqual(result.returncode, 0, result.stderr)
         loaded = json.loads(result.stdout)
         self.assertEqual(loaded["database_engine"], "django.db.backends.sqlite3")
+        self.assertTrue(loaded["database_name"].endswith("test_db.sqlite3"))
 
     def test_production_uses_db_name_when_postgres_db_is_empty(self):
         result = self._load_settings_subprocess(
