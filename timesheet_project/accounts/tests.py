@@ -102,6 +102,142 @@ class DashboardBrowserAccessTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
 
+class DashboardUserManagementUITests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="admin",
+            password="StrongTestPass123!",
+            role=User.Role.ADMIN,
+        )
+        self.office = User.objects.create_user(
+            username="office",
+            password="StrongTestPass123!",
+            role=User.Role.OFFICE,
+        )
+
+    def test_admin_can_open_user_management_page(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("dashboard-users"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "User Management")
+        self.assertContains(response, "Create User")
+
+    def test_office_user_cannot_open_user_management_page(self):
+        self.client.force_login(self.office)
+
+        response = self.client.get(reverse("dashboard-users"))
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_admin_can_create_nanny_with_temporary_password(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("dashboard-users"),
+            {
+                "action": "create",
+                "username": "new-nanny",
+                "password": "TemporaryPass123!",
+                "first_name": "New",
+                "last_name": "Nanny",
+                "email": "nanny@example.com",
+                "phone": "555-0100",
+                "role": User.Role.NANNY,
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        user = User.objects.get(username="new-nanny")
+        self.assertEqual(user.role, User.Role.NANNY)
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertTrue(user.force_password_change)
+        self.assertTrue(user.check_password("TemporaryPass123!"))
+
+    def test_admin_can_create_dashboard_admin_without_granting_staff(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("dashboard-users"),
+            {
+                "action": "create",
+                "username": "new-admin",
+                "password": "TemporaryPass123!",
+                "first_name": "New",
+                "last_name": "Admin",
+                "email": "admin@example.com",
+                "role": User.Role.ADMIN,
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        user = User.objects.get(username="new-admin")
+        self.assertEqual(user.role, User.Role.ADMIN)
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertTrue(user.can_access_dashboard)
+        self.assertFalse(user.can_access_django_admin)
+
+    def test_admin_can_deactivate_and_reset_user_password(self):
+        nanny = User.objects.create_user(
+            username="nanny",
+            password="OldStrongPass123!",
+            role=User.Role.NANNY,
+            first_name="Old",
+            last_name="Name",
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("dashboard-users"),
+            {
+                "action": "update",
+                "user_id": str(nanny.id),
+                "first_name": "Updated",
+                "last_name": "Nanny",
+                "email": "updated@example.com",
+                "phone": "555-0101",
+                "role": User.Role.NANNY,
+                "password": "ResetStrongPass123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        nanny.refresh_from_db()
+        self.assertEqual(nanny.first_name, "Updated")
+        self.assertFalse(nanny.is_active)
+        self.assertTrue(nanny.force_password_change)
+        self.assertTrue(nanny.check_password("ResetStrongPass123!"))
+
+    def test_superusers_are_not_listed_or_editable(self):
+        developer = User.objects.create_superuser(
+            username="developer",
+            password="StrongTestPass123!",
+            role=User.Role.ADMIN,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("dashboard-users"))
+        edit_response = self.client.post(
+            reverse("dashboard-users"),
+            {
+                "action": "update",
+                "user_id": str(developer.id),
+                "first_name": "Edited",
+                "last_name": "Developer",
+                "role": User.Role.ADMIN,
+                "is_active": "on",
+            },
+        )
+
+        self.assertNotContains(response, "developer")
+        self.assertEqual(edit_response.status_code, 404)
+
+
 class RoleAccessAPITests(APITestCase):
     def setUp(self):
         self.nanny = User.objects.create_user(
