@@ -90,7 +90,6 @@ class DashboardManagedUserUpdateForm(forms.ModelForm):
         if password:
             user.set_password(password)
             user.force_password_change = True
-        user.is_staff = False if not user.is_superuser else user.is_staff
         if commit:
             user.save()
         return user
