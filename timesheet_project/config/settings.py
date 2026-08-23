@@ -5,6 +5,7 @@ from pathlib import Path
 from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+IS_TESTING = "test" in sys.argv
 
 
 def csv_config(name, default=""):
@@ -14,13 +15,13 @@ def csv_config(name, default=""):
 DEBUG = config("DEBUG", default=True, cast=bool)
 SECRET_KEY = config("SECRET_KEY", default=None)
 if not SECRET_KEY:
-    if DEBUG or "test" in sys.argv:
+    if DEBUG or IS_TESTING:
         SECRET_KEY = "django-insecure-timesheetforyou-dev-key"
     else:
         raise ValueError("SECRET_KEY must be set when DEBUG is False.")
 
 ALLOWED_HOSTS = csv_config("ALLOWED_HOSTS", default="*" if DEBUG else "")
-if not DEBUG:
+if not DEBUG and not IS_TESTING:
     if not ALLOWED_HOSTS:
         raise ValueError("ALLOWED_HOSTS must be set when DEBUG is False.")
     if "*" in ALLOWED_HOSTS:
@@ -81,7 +82,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-if "test" in sys.argv:
+if IS_TESTING:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -89,16 +90,38 @@ if "test" in sys.argv:
         }
     }
 else:
-    database_name = config(
-        "POSTGRES_DB", default=config("DB_NAME", default=""))
+    database_name = config("POSTGRES_DB", default="") or config("DB_NAME", default="")
     if database_name:
+        database_user = config("POSTGRES_USER", default="") or config("DB_USER", default="")
+        database_password = config("POSTGRES_PASSWORD", default="") or config("DB_PASSWORD", default="")
+        database_host = config("POSTGRES_HOST", default="") or config("DB_HOST", default="")
+
+        if DEBUG:
+            database_user = database_user or "postgres"
+            database_password = database_password or "postgres"
+            database_host = database_host or "localhost"
+        else:
+            missing_database_settings = []
+            if not database_user:
+                missing_database_settings.append("POSTGRES_USER or DB_USER")
+            if not database_password:
+                missing_database_settings.append("POSTGRES_PASSWORD or DB_PASSWORD")
+            if not database_host:
+                missing_database_settings.append("POSTGRES_HOST or DB_HOST")
+            if missing_database_settings:
+                raise ValueError(
+                    "Production PostgreSQL configuration is incomplete; missing "
+                    + ", ".join(missing_database_settings)
+                    + "."
+                )
+
         DATABASES = {
             "default": {
                 "ENGINE": "django.db.backends.postgresql",
                 "NAME": database_name,
-                "USER": config("POSTGRES_USER", default=config("DB_USER", default="postgres")),
-                "PASSWORD": config("POSTGRES_PASSWORD", default=config("DB_PASSWORD", default="postgres")),
-                "HOST": config("POSTGRES_HOST", default=config("DB_HOST", default="localhost")),
+                "USER": database_user,
+                "PASSWORD": database_password,
+                "HOST": database_host,
                 "PORT": config("POSTGRES_PORT", default=config("DB_PORT", default="5432")),
                 "CONN_MAX_AGE": config("DB_CONN_MAX_AGE", default=60, cast=int),
             }
