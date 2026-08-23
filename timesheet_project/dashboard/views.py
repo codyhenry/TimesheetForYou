@@ -5,6 +5,7 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.forms import PasswordChangeForm
 from django.db.models import Count, Sum
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -244,6 +245,19 @@ def _get_managed_user(pk):
     return get_object_or_404(_managed_user_queryset(), pk=pk)
 
 
+def _get_update_form_prefix(user):
+    return f"user-{user.pk}"
+
+
+def _get_posted_managed_user(request):
+    user_id = request.POST.get("user_id")
+    try:
+        user_pk = int(user_id)
+    except (TypeError, ValueError):
+        raise Http404("Managed user not found.")
+    return _get_managed_user(user_pk)
+
+
 def _render_user_management(request, create_form=None, update_form=None, update_user=None):
     users = list(_managed_user_queryset())
     return render(
@@ -312,8 +326,12 @@ def user_management(request):
             return _render_user_management(request, create_form=form)
 
         if action == "update":
-            user = _get_managed_user(request.POST.get("user_id"))
-            form = DashboardManagedUserUpdateForm(request.POST, instance=user)
+            user = _get_posted_managed_user(request)
+            form = DashboardManagedUserUpdateForm(
+                request.POST,
+                instance=user,
+                prefix=_get_update_form_prefix(user),
+            )
             if form.is_valid():
                 user = form.save()
                 messages.success(request, f"Updated {user.get_full_name() or user.username}.")
