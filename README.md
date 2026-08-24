@@ -215,12 +215,7 @@ Example least-privilege IAM policy:
       "Sid": "TimesheetMediaBucketList",
       "Effect": "Allow",
       "Action": ["s3:ListBucket"],
-      "Resource": "arn:aws:s3:::timesheet-for-you-prod-media",
-      "Condition": {
-        "StringLike": {
-          "s3:prefix": "media/*"
-        }
-      }
+      "Resource": "arn:aws:s3:::timesheet-for-you-prod-media"
     },
     {
       "Sid": "TimesheetMediaObjectAccess",
