@@ -44,9 +44,12 @@ class RootAndErrorRoutingTests(TestCase):
 
 class ProductionSettingsHelpersTests(SimpleTestCase):
     def _load_settings_subprocess(self, extra_env, argv_suffix=None):
-        env = os.environ.copy()
+        env = {"PYTHONPATH": str(settings.BASE_DIR)}
+        for inherited_name in ["PATH", "SYSTEMROOT", "WINDIR"]:
+            inherited_value = os.environ.get(inherited_name)
+            if inherited_value:
+                env[inherited_name] = inherited_value
         env.update(extra_env)
-        env["PYTHONPATH"] = str(settings.BASE_DIR)
         code = """
 import json
 import config.settings as s
