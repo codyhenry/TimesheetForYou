@@ -28,7 +28,7 @@ class Command(BaseCommand):
             except ValueError as exc:
                 raise CommandError("--week-start must use YYYY-MM-DD format.") from exc
             if week_start_date.weekday() != SATURDAY_WEEKDAY:
-                raise CommandError("--week-start must be a Saturday week start date.")
+                raise CommandError("--week-start must be a Saturday")
 
         summary = send_due_timesheet_reminders(
             week_start_date=week_start_date,
