@@ -40,9 +40,9 @@ def send_sms_notification(phone_number, message, sns_client=None):
     """
     normalized_phone_number = str(phone_number or "").strip()
     if not normalized_phone_number:
-        raise ValueError("phone_number is required.")
+        raise ValueError("phone_number is required")
     if not message:
-        raise ValueError("message is required.")
+        raise ValueError("message is required")
 
     if not sns_notifications_enabled():
         return _not_sent_result(
