@@ -6,6 +6,10 @@ def root_redirect(request):
     return redirect("dashboard-index")
 
 
+def healthz(request):
+    return JsonResponse({"status": "ok"})
+
+
 def custom_404(request, exception=None):
     if request.path.startswith("/api/"):
         return JsonResponse({"detail": "Not found."}, status=404)

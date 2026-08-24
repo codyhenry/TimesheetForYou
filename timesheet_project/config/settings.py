@@ -5,16 +5,34 @@ from pathlib import Path
 from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+IS_TESTING = "test" in sys.argv
+
+
+def csv_config(name, default=""):
+    return [value.strip() for value in str(config(name, default=default)).split(",") if value.strip()]
+
 
 DEBUG = config("DEBUG", default=True, cast=bool)
 SECRET_KEY = config("SECRET_KEY", default=None)
 if not SECRET_KEY:
-    if DEBUG or "test" in sys.argv:
+    if DEBUG or IS_TESTING:
         SECRET_KEY = "django-insecure-timesheetforyou-dev-key"
     else:
         raise ValueError("SECRET_KEY must be set when DEBUG is False.")
-ALLOWED_HOSTS = [host.strip() for host in str(
-    config("ALLOWED_HOSTS", default="*")).split(",") if host.strip()]
+
+default_allowed_hosts = "*" if DEBUG else "testserver" if IS_TESTING else ""
+ALLOWED_HOSTS = csv_config("ALLOWED_HOSTS", default=default_allowed_hosts)
+if IS_TESTING and not ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ["testserver"]
+if not DEBUG and not IS_TESTING:
+    if not ALLOWED_HOSTS:
+        raise ValueError("ALLOWED_HOSTS must be set when DEBUG is False.")
+    if "*" in ALLOWED_HOSTS:
+        raise ValueError("ALLOWED_HOSTS cannot include '*' when DEBUG is False.")
+
+CSRF_TRUSTED_ORIGINS = csv_config("CSRF_TRUSTED_ORIGINS")
+if not DEBUG and not IS_TESTING and not CSRF_TRUSTED_ORIGINS:
+    raise ValueError("CSRF_TRUSTED_ORIGINS must be set when DEBUG is False.")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -33,6 +51,13 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+]
+
+USE_WHITENOISE = config("USE_WHITENOISE", default=not DEBUG, cast=bool)
+if USE_WHITENOISE:
+    MIDDLEWARE.append("whitenoise.middleware.WhiteNoiseMiddleware")
+
+MIDDLEWARE += [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -62,7 +87,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-if "test" in sys.argv:
+if IS_TESTING:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -70,19 +95,46 @@ if "test" in sys.argv:
         }
     }
 else:
-    database_name = config(
-        "POSTGRES_DB", default=config("DB_NAME", default=""))
+    database_name = config("POSTGRES_DB", default="") or config("DB_NAME", default="")
     if database_name:
+        database_user = config("POSTGRES_USER", default="") or config("DB_USER", default="")
+        database_password = config("POSTGRES_PASSWORD", default="") or config("DB_PASSWORD", default="")
+        database_host = config("POSTGRES_HOST", default="") or config("DB_HOST", default="")
+
+        if DEBUG:
+            database_user = database_user or "postgres"
+            database_password = database_password or "postgres"
+            database_host = database_host or "localhost"
+        else:
+            missing_database_settings = []
+            if not database_user:
+                missing_database_settings.append("POSTGRES_USER or DB_USER")
+            if not database_password:
+                missing_database_settings.append("POSTGRES_PASSWORD or DB_PASSWORD")
+            if not database_host:
+                missing_database_settings.append("POSTGRES_HOST or DB_HOST")
+            if missing_database_settings:
+                raise ValueError(
+                    "Production PostgreSQL configuration is incomplete; missing "
+                    + ", ".join(missing_database_settings)
+                    + "."
+                )
+
         DATABASES = {
             "default": {
                 "ENGINE": "django.db.backends.postgresql",
                 "NAME": database_name,
-                "USER": config("POSTGRES_USER", default=config("DB_USER", default="postgres")),
-                "PASSWORD": config("POSTGRES_PASSWORD", default=config("DB_PASSWORD", default="postgres")),
-                "HOST": config("POSTGRES_HOST", default=config("DB_HOST", default="localhost")),
+                "USER": database_user,
+                "PASSWORD": database_password,
+                "HOST": database_host,
                 "PORT": config("POSTGRES_PORT", default=config("DB_PORT", default="5432")),
+                "CONN_MAX_AGE": config("DB_CONN_MAX_AGE", default=60, cast=int),
             }
         }
+        if config("DB_SSL_REQUIRE", default=False, cast=bool):
+            DATABASES["default"]["OPTIONS"] = {"sslmode": "require"}
+    elif not DEBUG:
+        raise ValueError("POSTGRES_DB or DB_NAME must be set when DEBUG is False.")
     else:
         DATABASES = {
             "default": {
@@ -109,7 +161,9 @@ STORAGES = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        if USE_WHITENOISE
+        else "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
 
@@ -139,6 +193,22 @@ if USE_S3:
             "object_parameters": AWS_S3_OBJECT_PARAMETERS,
         },
     }
+
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG and not IS_TESTING, cast=bool)
+SECURE_REDIRECT_EXEMPT = csv_config("SECURE_REDIRECT_EXEMPT", default="^/?healthz/$")
+SECURE_PROXY_SSL_HEADER = (
+    ("HTTP_X_FORWARDED_PROTO", "https")
+    if config("USE_X_FORWARDED_PROTO", default=False, cast=bool)
+    else None
+)
+SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=not DEBUG, cast=bool)
+CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=not DEBUG, cast=bool)
+SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False, cast=bool)
+SECURE_HSTS_PRELOAD = config("SECURE_HSTS_PRELOAD", default=False, cast=bool)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = config("SECURE_REFERRER_POLICY", default="same-origin")
+X_FRAME_OPTIONS = "DENY"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
