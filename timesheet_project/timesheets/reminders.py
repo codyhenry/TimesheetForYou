@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -14,8 +14,8 @@ class TimesheetReminderRecipient:
     nanny_id: int
     nanny_name: str
     phone_number: str
-    week_start_date: object
-    week_end_date: object
+    week_start_date: date
+    week_end_date: date
     timesheet_id: int | None
     timesheet_status: str
 
