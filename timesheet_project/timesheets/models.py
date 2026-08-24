@@ -115,21 +115,6 @@ class ParentSignature(models.Model):
     def __str__(self):
         return f"Signature for entry {self.entry.pk}"
 
-    def save(self, *args, **kwargs):
-        old_image_name = ""
-        if self.pk:
-            old_image_name = (
-                type(self).objects.filter(pk=self.pk)
-                .values_list("image", flat=True)
-                .first()
-                or ""
-            )
-
-        super().save(*args, **kwargs)
-
-        if old_image_name and old_image_name != self.image.name:
-            self.image.storage.delete(old_image_name)
-
 
 class TimesheetSubmission(models.Model):
     class Status(models.TextChoices):
