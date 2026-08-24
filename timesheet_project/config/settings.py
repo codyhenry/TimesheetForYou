@@ -194,6 +194,10 @@ if USE_S3:
         },
     }
 
+USE_SNS = config("USE_SNS", default=False, cast=bool)
+AWS_SNS_REGION_NAME = config("AWS_SNS_REGION_NAME", default=config("AWS_REGION", default=""))
+SNS_SENDER_ID = config("SNS_SENDER_ID", default="")
+
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG and not IS_TESTING, cast=bool)
 SECURE_REDIRECT_EXEMPT = csv_config("SECURE_REDIRECT_EXEMPT", default="^/?healthz/$")
 SECURE_PROXY_SSL_HEADER = (
