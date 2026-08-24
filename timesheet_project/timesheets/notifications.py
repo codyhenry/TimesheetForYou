@@ -21,43 +21,60 @@ def _build_sns_client():
     return boto3.client("sns", region_name=region_name)
 
 
+def _not_sent_result(phone_number, reason):
+    return {
+        "sent": False,
+        "phone_number": phone_number,
+        "message_id": "",
+        "reason": reason,
+    }
+
+
 def send_sms_notification(phone_number, message, sns_client=None):
     """Send an SMS message through AWS SNS.
 
     When USE_SNS is false this is a safe no-op so reminder workflows can be
-    tested or dry-run without sending external messages.
+    tested or dry-run without sending external messages. Publish/configuration
+    failures are returned as non-sent results so scheduled reminder runs can
+    continue processing remaining recipients.
     """
-    if not phone_number:
+    normalized_phone_number = str(phone_number or "").strip()
+    if not normalized_phone_number:
         raise ValueError("phone_number is required.")
     if not message:
         raise ValueError("message is required.")
 
     if not sns_notifications_enabled():
-        return {
-            "sent": False,
-            "phone_number": phone_number,
-            "message_id": "",
-            "reason": "SNS notifications are disabled.",
-        }
+        return _not_sent_result(
+            normalized_phone_number,
+            "SNS notifications are disabled.",
+        )
 
-    client = sns_client or _build_sns_client()
-    publish_kwargs = {
-        "PhoneNumber": phone_number,
-        "Message": message,
-    }
-    sender_id = getattr(settings, "SNS_SENDER_ID", "")
-    if sender_id:
-        publish_kwargs["MessageAttributes"] = {
-            "AWS.SNS.SMS.SenderID": {
-                "DataType": "String",
-                "StringValue": sender_id,
+    try:
+        client = sns_client or _build_sns_client()
+        publish_kwargs = {
+            "PhoneNumber": normalized_phone_number,
+            "Message": message,
+        }
+        sender_id = getattr(settings, "SNS_SENDER_ID", "")
+        if sender_id:
+            publish_kwargs["MessageAttributes"] = {
+                "AWS.SNS.SMS.SenderID": {
+                    "DataType": "String",
+                    "StringValue": sender_id,
+                }
             }
-        }
 
-    response = client.publish(**publish_kwargs)
+        response = client.publish(**publish_kwargs)
+    except Exception as exc:  # pragma: no cover - exact SNS exception types vary by botocore version.
+        return _not_sent_result(
+            normalized_phone_number,
+            f"SNS publish failed: {exc}",
+        )
+
     return {
         "sent": True,
-        "phone_number": phone_number,
+        "phone_number": normalized_phone_number,
         "message_id": response.get("MessageId", ""),
         "reason": "",
     }
