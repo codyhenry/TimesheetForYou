@@ -199,7 +199,6 @@ class SignatureView(APIView):
                 "notes": entry.notes,
             },
         )
-        update_timesheet_status(signature.entry.timesheet)
         return Response(ParentSignatureSerializer(signature).data, status=status.HTTP_201_CREATED)
 
 
