@@ -3,6 +3,7 @@ import binascii
 from typing import Any, cast
 
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
@@ -168,9 +169,6 @@ class SignatureView(APIView):
     permission_classes = [IsNanny]
 
     def post(self, request, pk):
-        entry = get_object_or_404(TimeEntry.objects.select_related(
-            "timesheet", "timesheet__nanny"), pk=pk, timesheet__nanny=request.user)
-        ensure_timesheet_week_unlocked(entry.timesheet)
         signature_value = request.data.get("image")
         if not signature_value or not str(signature_value).strip():
             return Response({"image": "Signature image is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -183,24 +181,43 @@ class SignatureView(APIView):
         if not decoded:
             return Response({"image": "Signature image cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
 
-        signature, _ = ParentSignature.objects.get_or_create(entry=entry)
-        signature.image.save(
-            f"signature_{entry.pk}.png", ContentFile(decoded), save=False)
-        signature.approved_snapshot = {
-            "entry_id": entry.pk,
-            "work_date": entry.work_date.isoformat(),
-            "family_name": entry.family_name,
-            "family_requested_nanny": entry.family_requested_nanny,
-            "start_time": entry.start_time.isoformat(),
-            "end_time": entry.end_time.isoformat(),
-            "total_hours": str(entry.total_hours),
-            "notes": entry.notes,
-        }
-        signature.save()
+        old_image_storage = None
+        old_image_name = ""
+        with transaction.atomic():
+            entry = get_object_or_404(
+                TimeEntry.objects.select_for_update().select_related("timesheet", "timesheet__nanny"),
+                pk=pk,
+                timesheet__nanny=request.user,
+            )
+            ensure_timesheet_week_unlocked(entry.timesheet)
+            signature = ParentSignature.objects.select_for_update().filter(entry=entry).first()
+            if signature is None:
+                signature = ParentSignature(entry=entry)
+            elif signature.image:
+                old_image_storage = signature.image.storage
+                old_image_name = signature.image.name
 
-        entry.signature_status = TimeEntry.SignatureStatus.SIGNED
-        entry.save(update_fields=["signature_status", "updated_at"])
-        update_timesheet_status(entry.timesheet)
+            signature.image.save(
+                f"signature_{entry.pk}.png", ContentFile(decoded), save=False)
+            signature.approved_snapshot = {
+                "entry_id": entry.pk,
+                "work_date": entry.work_date.isoformat(),
+                "family_name": entry.family_name,
+                "family_requested_nanny": entry.family_requested_nanny,
+                "start_time": entry.start_time.isoformat(),
+                "end_time": entry.end_time.isoformat(),
+                "total_hours": str(entry.total_hours),
+                "notes": entry.notes,
+            }
+            signature.save()
+
+            entry.signature_status = TimeEntry.SignatureStatus.SIGNED
+            entry.save(update_fields=["signature_status", "updated_at"])
+            update_timesheet_status(entry.timesheet)
+
+        if old_image_storage and old_image_name and old_image_name != signature.image.name:
+            old_image_storage.delete(old_image_name)
+
         return Response(ParentSignatureSerializer(signature).data, status=status.HTTP_201_CREATED)
 
 
