@@ -1,14 +1,23 @@
 from django.db import transaction
 
 from .models import ParentSignature, TimeEntry
+from .services import update_timesheet_status
 
 
-def replace_parent_signature_image(*, entry_id, image_name, image_content, approved_snapshot):
+def _delete_stored_file(storage, name):
+    try:
+        storage.delete(name)
+    except Exception:
+        # File cleanup must not roll back or mask the successful signature update.
+        pass
+
+
+def replace_parent_signature_image(*, entry_id, image_name, image_content, approved_snapshot, signature_id=None):
     """Replace an entry's parent signature image through a serialized path.
 
     The entry row is locked so concurrent re-sign requests for the same time
-    entry serialize. The previous stored object is deleted only after the row
-    points at the replacement image, keeping cleanup shared for API and admin
+    entry serialize. The previous stored object is deleted only after the outer
+    database transaction commits, keeping cleanup shared for API and admin
     replacement paths.
     """
     old_image_name = ""
@@ -17,7 +26,12 @@ def replace_parent_signature_image(*, entry_id, image_name, image_content, appro
 
     with transaction.atomic():
         entry = TimeEntry.objects.select_for_update().select_related("timesheet").get(pk=entry_id)
-        signature = ParentSignature.objects.select_for_update().filter(entry=entry).first()
+        signatures = ParentSignature.objects.select_for_update()
+        if signature_id is not None:
+            signature = signatures.get(pk=signature_id, entry=entry)
+        else:
+            signature = signatures.filter(entry=entry).first()
+
         if signature is None:
             signature = ParentSignature(entry=entry)
         else:
@@ -31,9 +45,10 @@ def replace_parent_signature_image(*, entry_id, image_name, image_content, appro
 
         entry.signature_status = TimeEntry.SignatureStatus.SIGNED
         entry.save(update_fields=["signature_status", "updated_at"])
+        update_timesheet_status(entry.timesheet)
         signature.entry = entry
 
-    if storage and old_image_name and old_image_name != new_image_name:
-        storage.delete(old_image_name)
+        if storage and old_image_name and old_image_name != new_image_name:
+            transaction.on_commit(lambda: _delete_stored_file(storage, old_image_name))
 
     return signature
