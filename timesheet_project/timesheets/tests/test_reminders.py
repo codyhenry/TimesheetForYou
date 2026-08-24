@@ -2,6 +2,7 @@ from datetime import date, time
 from io import StringIO
 
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
 from accounts.models import User
@@ -21,6 +22,11 @@ class FakeSnsClient:
     def publish(self, **kwargs):
         self.publish_calls.append(kwargs)
         return {"MessageId": f"message-{len(self.publish_calls)}"}
+
+
+class FailingSnsClient:
+    def publish(self, **kwargs):
+        raise RuntimeError("SNS unavailable")
 
 
 class TimesheetReminderTests(TestCase):
@@ -70,6 +76,8 @@ class TimesheetReminderTests(TestCase):
         statuses = {recipient.nanny_id: recipient.timesheet_status for recipient in recipients}
         self.assertEqual(statuses[self.nanny.id], draft_timesheet.status)
         self.assertEqual(statuses[missing_timesheet_nanny.id], "missing")
+        self.assertIsInstance(recipients[0].week_start_date, date)
+        self.assertIsInstance(recipients[0].week_end_date, date)
 
     def test_recipients_skip_submitted_inactive_no_phone_non_nanny_and_locked_weeks(self):
         submitted_nanny = User.objects.create_user(
@@ -111,10 +119,15 @@ class TimesheetReminderTests(TestCase):
         self.assertEqual(get_timesheet_reminder_recipients(week_start_date=self.week_start), [])
 
     def test_disabled_sns_is_safe_noop(self):
-        result = send_sms_notification("+15555550100", "Reminder")
+        result = send_sms_notification(" +15555550100 ", "Reminder")
 
         self.assertFalse(result["sent"])
+        self.assertEqual(result["phone_number"], "+15555550100")
         self.assertEqual(result["reason"], "SNS notifications are disabled.")
+
+    def test_whitespace_only_phone_number_is_rejected(self):
+        with self.assertRaisesMessage(ValueError, "phone_number is required"):
+            send_sms_notification("   ", "Reminder")
 
     @override_settings(USE_SNS=True, AWS_SNS_REGION_NAME="us-east-1", SNS_SENDER_ID="Timesheet")
     def test_send_due_timesheet_reminders_publishes_to_sns_client(self):
@@ -135,6 +148,19 @@ class TimesheetReminderTests(TestCase):
             publish_call["MessageAttributes"]["AWS.SNS.SMS.SenderID"]["StringValue"],
             "Timesheet",
         )
+
+    @override_settings(USE_SNS=True, AWS_SNS_REGION_NAME="us-east-1")
+    def test_send_due_timesheet_reminders_records_sns_publish_failures(self):
+        summary = send_due_timesheet_reminders(
+            week_start_date=self.week_start,
+            sns_client=FailingSnsClient(),
+        )
+
+        self.assertEqual(summary["recipient_count"], 1)
+        self.assertEqual(summary["sent_count"], 0)
+        self.assertFalse(summary["results"][0]["sent"])
+        self.assertIn("SNS publish failed", summary["results"][0]["reason"])
+        self.assertIn("SNS unavailable", summary["results"][0]["reason"])
 
     def test_send_due_timesheet_reminders_dry_run_does_not_publish(self):
         sns_client = FakeSnsClient()
@@ -165,3 +191,12 @@ class TimesheetReminderTests(TestCase):
         self.assertIn("Dry run reminders for 2026-07-11 - 2026-07-17", output)
         self.assertIn("1 eligible", output)
         self.assertIn("Dry run; notification was not sent", output)
+
+    def test_management_command_rejects_non_saturday_week_start(self):
+        with self.assertRaisesMessage(CommandError, "--week-start must be a Saturday"):
+            call_command(
+                "send_timesheet_reminders",
+                "--week-start",
+                "2026-07-12",
+                "--dry-run",
+            )
