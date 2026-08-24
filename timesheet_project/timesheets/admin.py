@@ -65,10 +65,16 @@ class ParentSignatureAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         if "image" in form.changed_data:
+            signature_id = obj.pk if change else None
+            if change:
+                entry_id = ParentSignature.objects.only("entry_id").get(pk=obj.pk).entry_id
+            else:
+                entry_id = obj.entry_id
+
             image_name = Path(obj.image.name).name
             replacement = replace_parent_signature_image(
-                entry_id=obj.entry_id,
-                signature_id=obj.pk if change else None,
+                entry_id=entry_id,
+                signature_id=signature_id,
                 image_name=image_name,
                 image_content=obj.image.file,
                 approved_snapshot=obj.approved_snapshot,
