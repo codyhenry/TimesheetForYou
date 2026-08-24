@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from django.contrib import admin
 
 from .models import ParentSignature, TimeEntry, TimesheetSubmission, TimesheetWeekLock, WeeklyTimesheet
+from .signatures import replace_parent_signature_image
 
 
 class TimeEntryInline(admin.TabularInline):
@@ -52,6 +55,22 @@ class TimeEntryAdmin(admin.ModelAdmin):
 @admin.register(ParentSignature)
 class ParentSignatureAdmin(admin.ModelAdmin):
     list_display = ("id", "entry", "signed_at")
+
+    def save_model(self, request, obj, form, change):
+        if "image" in form.changed_data:
+            image_name = Path(obj.image.name).name
+            replacement = replace_parent_signature_image(
+                entry_id=obj.entry_id,
+                image_name=image_name,
+                image_content=obj.image.file,
+                approved_snapshot=obj.approved_snapshot,
+            )
+            obj.pk = replacement.pk
+            obj.image = replacement.image
+            obj.signed_at = replacement.signed_at
+            return
+
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(TimesheetSubmission)
