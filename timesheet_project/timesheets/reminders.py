@@ -36,9 +36,10 @@ def get_latest_due_timesheet_week(reference_time=None):
 def get_timesheet_reminder_recipients(week_start_date=None, reference_time=None):
     """Find active nannies who still need to submit for the selected due week.
 
-    A nanny is eligible when they have a phone number, the week is not locked,
-    and they do not have a submitted timesheet for the week. This includes both
-    draft/in-progress timesheets and nannies who never opened that week's sheet.
+    A nanny is eligible when they have a usable phone number, the week is not
+    locked, and they do not have a submitted timesheet for the week. This
+    includes both draft/in-progress timesheets and nannies who never opened that
+    week's sheet.
     """
     if week_start_date is None:
         week_start, week_end = get_latest_due_timesheet_week(reference_time=reference_time)
@@ -68,12 +69,16 @@ def get_timesheet_reminder_recipients(week_start_date=None, reference_time=None)
 
     recipients = []
     for nanny in nannies:
+        phone_number = str(nanny.phone or "").strip()
+        if not phone_number:
+            continue
+
         timesheet = timesheets.get(nanny.id)
         recipients.append(
             TimesheetReminderRecipient(
                 nanny_id=nanny.id,
                 nanny_name=nanny.get_full_name() or nanny.username,
-                phone_number=nanny.phone,
+                phone_number=phone_number,
                 week_start_date=week_start,
                 week_end_date=week_end,
                 timesheet_id=timesheet.id if timesheet else None,
@@ -128,7 +133,6 @@ def send_due_timesheet_reminders(
             {
                 "nanny_id": recipient.nanny_id,
                 "nanny_name": recipient.nanny_name,
-                "phone_number": recipient.phone_number,
                 "timesheet_id": recipient.timesheet_id,
                 "timesheet_status": recipient.timesheet_status,
                 "message": message,
