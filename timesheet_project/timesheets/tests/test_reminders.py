@@ -66,7 +66,7 @@ class TimesheetReminderTests(TestCase):
             username="nanny2",
             password="StrongTestPass123!",
             role=User.Role.NANNY,
-            phone="+15555550101",
+            phone=" +15555550101 ",
         )
 
         recipients = get_timesheet_reminder_recipients(week_start_date=self.week_start)
@@ -76,6 +76,8 @@ class TimesheetReminderTests(TestCase):
         statuses = {recipient.nanny_id: recipient.timesheet_status for recipient in recipients}
         self.assertEqual(statuses[self.nanny.id], draft_timesheet.status)
         self.assertEqual(statuses[missing_timesheet_nanny.id], "missing")
+        phone_numbers = {recipient.nanny_id: recipient.phone_number for recipient in recipients}
+        self.assertEqual(phone_numbers[missing_timesheet_nanny.id], "+15555550101")
         self.assertIsInstance(recipients[0].week_start_date, date)
         self.assertIsInstance(recipients[0].week_end_date, date)
 
@@ -100,6 +102,12 @@ class TimesheetReminderTests(TestCase):
             username="no_phone",
             password="StrongTestPass123!",
             role=User.Role.NANNY,
+        )
+        User.objects.create_user(
+            username="whitespace_phone",
+            password="StrongTestPass123!",
+            role=User.Role.NANNY,
+            phone="   ",
         )
         User.objects.create_user(
             username="office",
