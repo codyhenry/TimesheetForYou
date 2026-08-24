@@ -3,6 +3,7 @@ from datetime import date
 from django.core.management.base import BaseCommand, CommandError
 
 from timesheets.reminders import send_due_timesheet_reminders
+from timesheets.services import SATURDAY_WEEKDAY
 
 
 class Command(BaseCommand):
@@ -26,6 +27,8 @@ class Command(BaseCommand):
                 week_start_date = date.fromisoformat(options["week_start"])
             except ValueError as exc:
                 raise CommandError("--week-start must use YYYY-MM-DD format.") from exc
+            if week_start_date.weekday() != SATURDAY_WEEKDAY:
+                raise CommandError("--week-start must be a Saturday week start date.")
 
         summary = send_due_timesheet_reminders(
             week_start_date=week_start_date,
