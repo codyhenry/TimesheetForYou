@@ -100,4 +100,7 @@ class TimesheetPDFOutputTests(TestCase):
 
         self.timesheet.refresh_from_db()
         with self.timesheet.pdf_file.open("rb") as pdf_file:
-            self.assertTrue(pdf_file.read().startswith(b"%PDF"))
+            pdf_bytes = pdf_file.read()
+
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+        self.assertIn(b"/Subtype /Image", pdf_bytes)
