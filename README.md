@@ -227,6 +227,41 @@ Example least-privilege IAM policy:
 }
 ```
 
+## Optional SNS Timesheet Reminders
+
+Set `USE_SNS=True` to send SMS reminders through AWS SNS for nannies who have not submitted a due timesheet.
+
+```env
+USE_SNS=True
+AWS_SNS_REGION_NAME=us-east-1
+SNS_SENDER_ID=Timesheet
+```
+
+AWS credentials should be provided by the runtime environment, such as an IAM role or the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables. The app only needs `sns:Publish` permission for SMS publishing.
+
+Run a dry run before enabling live sends:
+
+```bash
+cd timesheet_project
+python manage.py send_timesheet_reminders --dry-run
+```
+
+Send reminders for the latest due week:
+
+```bash
+python manage.py send_timesheet_reminders
+```
+
+Send reminders for a specific Saturday-Friday week:
+
+```bash
+python manage.py send_timesheet_reminders --week-start 2026-07-11
+```
+
+The command targets active nanny users with phone numbers who do not have a submitted timesheet for the selected due week. It includes nannies with draft/in-progress timesheets and nannies who never opened that week's timesheet. It skips submitted timesheets, inactive users, non-nanny users, users without phone numbers, and locked weeks.
+
+Schedule this command with your production scheduler, such as cron, a platform scheduler, or AWS EventBridge. A typical cadence is shortly after the Saturday noon deadline and again later in the weekend for overdue reminders.
+
 ## Mobile Setup: React Native / Expo
 
 Open a second terminal from the repo root:
