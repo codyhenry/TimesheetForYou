@@ -1,9 +1,8 @@
-import base64
 import shutil
 from datetime import date, time, timedelta
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 from PIL import Image
 from django.conf import settings
@@ -95,7 +94,8 @@ class TimesheetPDFOutputTests(TestCase):
         entry.signature_status = TimeEntry.SignatureStatus.SIGNED
         entry.save(update_fields=["signature_status", "updated_at"])
 
-        with patch.object(type(signature.image), "path", new_callable=property, side_effect=NotImplementedError):
+        with patch.object(type(signature.image), "path", new_callable=PropertyMock) as path_mock:
+            path_mock.side_effect = NotImplementedError
             submit_timesheet(self.timesheet)
 
         self.timesheet.refresh_from_db()
