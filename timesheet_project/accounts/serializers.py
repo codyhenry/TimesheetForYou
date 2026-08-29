@@ -9,6 +9,8 @@ from .services import (
     send_setup_email_for_identifier,
 )
 
+USERNAME_FIELD = User._meta.get_field("username")
+
 
 class CurrentUserSerializer(serializers.ModelSerializer):
     can_access_dashboard = serializers.BooleanField(read_only=True)
@@ -186,7 +188,12 @@ class AccountSetupValidateSerializer(serializers.Serializer):
 
 class AccountSetupCompleteSerializer(serializers.Serializer):
     token = serializers.CharField(write_only=True, allow_blank=False)
-    username = serializers.CharField(write_only=True, allow_blank=False)
+    username = serializers.CharField(
+        write_only=True,
+        allow_blank=False,
+        max_length=USERNAME_FIELD.max_length,
+        validators=list(USERNAME_FIELD.validators),
+    )
     password = serializers.CharField(write_only=True, trim_whitespace=False)
     confirm_password = serializers.CharField(write_only=True, trim_whitespace=False)
 
