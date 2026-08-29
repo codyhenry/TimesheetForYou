@@ -345,8 +345,15 @@ def user_management(request):
             form = DashboardManagedUserCreateForm(request.POST)
             if form.is_valid():
                 user = form.save()
-                send_account_setup_email(user)
-                messages.success(request, f"Created {user.get_full_name() or user.email} and sent setup instructions.")
+                setup_token = send_account_setup_email(user)
+                display_name = user.get_full_name() or user.email
+                if setup_token:
+                    messages.success(request, f"Created {display_name} and sent setup instructions.")
+                else:
+                    messages.success(
+                        request,
+                        f"Created {display_name}. Setup instructions were not sent because the account is inactive.",
+                    )
                 return redirect("dashboard-users")
             return _render_user_management(request, create_form=form)
 
