@@ -27,6 +27,7 @@
         .role-pill { display: inline-block; padding: 3px 8px; border: 1px solid #d1d5db; border-radius: 999px; background: #f9fafb; font-size: 0.85em; }
         .status-active { color: #047857; font-weight: 700; }
         .status-inactive { color: #b91c1c; font-weight: 700; }
+        .status-pending { color: #b45309; font-weight: 700; }
         .inline-form { display: grid; gap: 8px; grid-template-columns: repeat(6, minmax(120px, 1fr)); align-items: end; }
         .wide { grid-column: span 2; }
         @media (max-width: 1000px) {
@@ -39,7 +40,7 @@
     <div class="header">
         <div>
             <h1>User Management</h1>
-            <p class="muted">Create nannies, office users, and dashboard admins. Dashboard-created users are never granted Django staff or superuser privileges.</p>
+            <p class="muted">Create nannies, office users, and dashboard admins. New users receive setup instructions and choose their own username and password.</p>
         </div>
         <a class="secondary-link" href="{% url 'dashboard-index' %}">Back to Dashboard</a>
     </div>
@@ -59,26 +60,6 @@
             {% csrf_token %}
             <input type="hidden" name="action" value="create">
             <div class="form-grid">
-                <div>
-                    <label for="{{ create_form.username.id_for_label }}">Username</label>
-                    {{ create_form.username }}
-                    {{ create_form.username.errors }}
-                </div>
-                <div>
-                    <label for="{{ create_form.password.id_for_label }}">Temporary password</label>
-                    {{ create_form.password }}
-                    {{ create_form.password.errors }}
-                </div>
-                <div>
-                    <label for="{{ create_form.role.id_for_label }}">Role</label>
-                    {{ create_form.role }}
-                    {{ create_form.role.errors }}
-                </div>
-                <div class="checkbox-row">
-                    {{ create_form.is_active }}
-                    <label for="{{ create_form.is_active.id_for_label }}">Active</label>
-                    {{ create_form.is_active.errors }}
-                </div>
                 <div>
                     <label for="{{ create_form.first_name.id_for_label }}">First name</label>
                     {{ create_form.first_name }}
@@ -100,11 +81,21 @@
                     {{ create_form.phone.errors }}
                 </div>
                 <div>
+                    <label for="{{ create_form.role.id_for_label }}">Role</label>
+                    {{ create_form.role }}
+                    {{ create_form.role.errors }}
+                </div>
+                <div class="checkbox-row">
+                    {{ create_form.is_active }}
+                    <label for="{{ create_form.is_active.id_for_label }}">Active</label>
+                    {{ create_form.is_active.errors }}
+                </div>
+                <div>
                     <button type="submit">Create User</button>
                 </div>
             </div>
         </form>
-        <p class="muted">Temporary-password users are forced through password setup before normal dashboard or mobile workflows.</p>
+        <p class="muted">Admins do not set passwords. The user receives a setup link and chooses their own username and password.</p>
     </section>
 
     <section>
