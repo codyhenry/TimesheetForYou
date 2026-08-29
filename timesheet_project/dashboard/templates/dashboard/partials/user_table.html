@@ -4,7 +4,7 @@
             <th>User</th>
             <th>Role</th>
             <th>Status</th>
-            <th>Password Setup</th>
+            <th>Account Setup</th>
             <th>Update</th>
         </tr>
     </thead>
@@ -12,7 +12,7 @@
         {% for user in users %}
             <tr>
                 <td>
-                    <strong>{{ user.get_full_name|default:user.username }}</strong><br>
+                    <strong>{{ user.get_full_name|default:user.email }}</strong><br>
                     <span class="muted">{{ user.username }}</span><br>
                     {% if user.email %}<span class="muted">{{ user.email }}</span><br>{% endif %}
                     {% if user.phone %}<span class="muted">{{ user.phone }}</span>{% endif %}
@@ -27,8 +27,8 @@
                     {% endif %}
                 </td>
                 <td>
-                    {% if user.force_password_change %}
-                        Required
+                    {% if user.account_setup_required %}
+                        <span class="status-pending">Pending</span>
                     {% else %}
                         Complete
                     {% endif %}
@@ -70,16 +70,6 @@
                                 <label for="{{ update_form.is_active.id_for_label }}">Active</label>
                                 {{ update_form.is_active.errors }}
                             </div>
-                            <div class="checkbox-row">
-                                {{ update_form.force_password_change }}
-                                <label for="{{ update_form.force_password_change.id_for_label }}">Force password setup</label>
-                                {{ update_form.force_password_change.errors }}
-                            </div>
-                            <div class="wide">
-                                <label for="{{ update_form.temporary_password.id_for_label }}">Temporary password reset</label>
-                                {{ update_form.temporary_password }}
-                                {{ update_form.temporary_password.errors }}
-                            </div>
                             {% if update_form.non_field_errors %}
                                 <div class="wide">{{ update_form.non_field_errors }}</div>
                             {% endif %}
@@ -111,14 +101,6 @@
                             <div class="checkbox-row">
                                 <input id="user-{{ user.id }}-is_active" type="checkbox" name="user-{{ user.id }}-is_active" {% if user.is_active %}checked{% endif %}>
                                 <label for="user-{{ user.id }}-is_active">Active</label>
-                            </div>
-                            <div class="checkbox-row">
-                                <input id="user-{{ user.id }}-force_password_change" type="checkbox" name="user-{{ user.id }}-force_password_change" {% if user.force_password_change %}checked{% endif %}>
-                                <label for="user-{{ user.id }}-force_password_change">Force password setup</label>
-                            </div>
-                            <div class="wide">
-                                <label for="user-{{ user.id }}-temporary_password">Temporary password reset</label>
-                                <input id="user-{{ user.id }}-temporary_password" type="password" name="user-{{ user.id }}-temporary_password" autocomplete="new-password">
                             </div>
                         {% endif %}
                         <div>
