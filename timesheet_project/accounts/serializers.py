@@ -123,6 +123,7 @@ class NannySerializer(ManagedUserSerializerMixin, serializers.ModelSerializer):
 
 
 class DashboardUserSerializer(ManagedUserSerializerMixin, serializers.ModelSerializer):
+    role = serializers.ChoiceField(choices=[User.Role.OFFICE, User.Role.ADMIN], required=True)
     can_access_dashboard = serializers.BooleanField(read_only=True)
     can_access_django_admin = serializers.BooleanField(read_only=True)
     account_setup_required = serializers.BooleanField(read_only=True)
@@ -145,13 +146,8 @@ class DashboardUserSerializer(ManagedUserSerializerMixin, serializers.ModelSeria
         ]
         read_only_fields = ["username", "is_staff", "account_setup_required"]
 
-    def validate_role(self, value):
-        if value not in {User.Role.OFFICE, User.Role.ADMIN}:
-            raise serializers.ValidationError("Dashboard users must have the office or admin role.")
-        return value
-
     def create(self, validated_data):
-        return self.create_pending_user(validated_data, validated_data.get("role"))
+        return self.create_pending_user(validated_data, validated_data["role"])
 
     def update(self, instance, validated_data):
         return self.update_profile(instance, validated_data)
@@ -169,14 +165,15 @@ class AccountSetupRequestSerializer(serializers.Serializer):
 class AccountSetupValidateSerializer(serializers.Serializer):
     token = serializers.CharField(write_only=True, allow_blank=False)
 
-    def validate_token(self, value):
-        setup_token = get_available_account_setup_token(value)
+    def validate(self, attrs):
+        setup_token = get_available_account_setup_token(attrs["token"])
         if setup_token is None:
-            raise serializers.ValidationError("Setup link is invalid or expired.")
-        return value
+            raise serializers.ValidationError({"token": "Setup link is invalid or expired."})
+        attrs["setup_token"] = setup_token
+        return attrs
 
     def to_representation(self, instance):
-        setup_token = get_available_account_setup_token(self.validated_data["token"])
+        setup_token = self.validated_data["setup_token"]
         user = setup_token.user
         return {
             "first_name": user.first_name,
