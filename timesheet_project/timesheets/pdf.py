@@ -1,6 +1,5 @@
 from decimal import Decimal
 from io import BytesIO
-from pathlib import Path
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -16,15 +15,28 @@ def _paragraph(value, styles):
     return Paragraph(escape(str(value or "—")), styles["BodyText"])
 
 
+def _signature_image(image_field):
+    if not image_field:
+        return None
+    try:
+        image_field.open("rb")
+        try:
+            image_data = BytesIO(image_field.read())
+        finally:
+            image_field.close()
+        if image_data.getbuffer().nbytes:
+            image_data.seek(0)
+            return Image(image_data, width=1.2 * inch, height=0.4 * inch)
+    except Exception:
+        return None
+    return None
+
+
 def _signature_cell(entry, styles):
     if entry.signature_status == TimeEntry.SignatureStatus.SIGNED and hasattr(entry, "parent_signature"):
-        image_field = entry.parent_signature.image
-        try:
-            image_path = Path(image_field.path)
-            if image_path.exists():
-                return Image(str(image_path), width=1.2 * inch, height=0.4 * inch)
-        except Exception:
-            pass
+        signature_image = _signature_image(entry.parent_signature.image)
+        if signature_image is not None:
+            return signature_image
         return Paragraph("SIGNED", styles["BodyText"])
     return Paragraph('<font color="red">UNSIGNED</font>', styles["BodyText"])
 

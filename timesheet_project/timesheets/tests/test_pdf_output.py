@@ -1,12 +1,16 @@
 import shutil
 from datetime import date, time, timedelta
+from io import BytesIO
 from pathlib import Path
+from unittest.mock import PropertyMock, patch
 
+from PIL import Image
 from django.conf import settings
+from django.core.files.base import ContentFile
 from django.test import TestCase, override_settings
 
 from accounts.models import User
-from timesheets.models import TimeEntry, WeeklyTimesheet
+from timesheets.models import ParentSignature, TimeEntry, WeeklyTimesheet
 from timesheets.services import (
     calculate_total_hours,
     format_timesheet_pdf_filename,
@@ -52,6 +56,12 @@ class TimesheetPDFOutputTests(TestCase):
             notes=notes,
         )
 
+    def signature_content_file(self, color="black"):
+        image = Image.new("RGB", (20, 20), color=color)
+        buffer = BytesIO()
+        image.save(buffer, format="PNG")
+        return ContentFile(buffer.getvalue(), name="signature.png")
+
     def test_pdf_filename_uses_nanny_name_and_week_range(self):
         self.assertEqual(
             format_timesheet_pdf_filename(self.timesheet),
@@ -76,3 +86,21 @@ class TimesheetPDFOutputTests(TestCase):
         )
         with self.timesheet.pdf_file.open("rb") as pdf_file:
             self.assertTrue(pdf_file.read().startswith(b"%PDF"))
+
+    def test_signed_signature_pdf_rendering_does_not_require_local_path(self):
+        entry = self.create_entry()
+        signature = ParentSignature(entry=entry)
+        signature.image.save("signature.png", self.signature_content_file(), save=True)
+        entry.signature_status = TimeEntry.SignatureStatus.SIGNED
+        entry.save(update_fields=["signature_status", "updated_at"])
+
+        with patch.object(type(signature.image), "path", new_callable=PropertyMock) as path_mock:
+            path_mock.side_effect = NotImplementedError
+            submit_timesheet(self.timesheet)
+
+        self.timesheet.refresh_from_db()
+        with self.timesheet.pdf_file.open("rb") as pdf_file:
+            pdf_bytes = pdf_file.read()
+
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+        self.assertIn(b"/Subtype /Image", pdf_bytes)

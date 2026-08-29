@@ -15,7 +15,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsDashboardUser, IsNanny
 from .permissions import IsEntryOwner, IsTimesheetOwner
-from .models import ParentSignature, TimeEntry, WeeklyTimesheet
+from .models import TimeEntry, WeeklyTimesheet
 from .serializers import (
     AdminNotesUpdateSerializer,
     AdminTimesheetDetailSerializer,
@@ -38,6 +38,7 @@ from .services import (
     submit_timesheet,
     update_timesheet_status,
 )
+from .signatures import replace_parent_signature_image
 
 
 def _is_truthy(value):
@@ -183,24 +184,21 @@ class SignatureView(APIView):
         if not decoded:
             return Response({"image": "Signature image cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
 
-        signature, _ = ParentSignature.objects.get_or_create(entry=entry)
-        signature.image.save(
-            f"signature_{entry.pk}.png", ContentFile(decoded), save=False)
-        signature.approved_snapshot = {
-            "entry_id": entry.pk,
-            "work_date": entry.work_date.isoformat(),
-            "family_name": entry.family_name,
-            "family_requested_nanny": entry.family_requested_nanny,
-            "start_time": entry.start_time.isoformat(),
-            "end_time": entry.end_time.isoformat(),
-            "total_hours": str(entry.total_hours),
-            "notes": entry.notes,
-        }
-        signature.save()
-
-        entry.signature_status = TimeEntry.SignatureStatus.SIGNED
-        entry.save(update_fields=["signature_status", "updated_at"])
-        update_timesheet_status(entry.timesheet)
+        signature = replace_parent_signature_image(
+            entry_id=entry.pk,
+            image_name=f"signature_{entry.pk}.png",
+            image_content=ContentFile(decoded),
+            approved_snapshot={
+                "entry_id": entry.pk,
+                "work_date": entry.work_date.isoformat(),
+                "family_name": entry.family_name,
+                "family_requested_nanny": entry.family_requested_nanny,
+                "start_time": entry.start_time.isoformat(),
+                "end_time": entry.end_time.isoformat(),
+                "total_hours": str(entry.total_hours),
+                "notes": entry.notes,
+            },
+        )
         return Response(ParentSignatureSerializer(signature).data, status=status.HTTP_201_CREATED)
 
 
