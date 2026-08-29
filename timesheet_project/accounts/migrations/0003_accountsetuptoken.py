@@ -32,10 +32,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="accountsetuptoken",
-            index=models.Index(fields=["token_hash"], name="accounts_ac_token__d8efab_idx"),
-        ),
-        migrations.AddIndex(
-            model_name="accountsetuptoken",
             index=models.Index(fields=["user", "used_at", "expires_at"], name="accounts_ac_user_id_791ae9_idx"),
         ),
     ]
