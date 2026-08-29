@@ -92,8 +92,6 @@ class ManagedUserSerializerMixin:
             if attr == "is_staff":
                 continue
             setattr(instance, attr, value)
-        if not instance.is_superuser:
-            instance.is_staff = False
         instance.save()
         return instance
 
