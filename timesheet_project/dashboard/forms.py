@@ -1,7 +1,7 @@
 from django import forms
-from django.contrib.auth.password_validation import validate_password
 
 from accounts.models import User
+from accounts.services import generate_pending_username
 
 
 MANAGED_ROLES = (User.Role.NANNY, User.Role.OFFICE, User.Role.ADMIN)
@@ -11,19 +11,13 @@ MANAGED_ROLE_CHOICES = [
 
 
 class DashboardManagedUserCreateForm(forms.ModelForm):
-    password = forms.CharField(
-        widget=forms.PasswordInput,
-        help_text="Temporary password. The user must change it on next sign-in.",
-        strip=False,
-    )
-
     role = forms.ChoiceField(choices=MANAGED_ROLE_CHOICES)
+    email = forms.EmailField(required=True)
+    phone = forms.CharField(required=True, max_length=30)
 
     class Meta:
         model = User
         fields = [
-            "username",
-            "password",
             "first_name",
             "last_name",
             "email",
@@ -35,32 +29,34 @@ class DashboardManagedUserCreateForm(forms.ModelForm):
             "email": forms.EmailInput(),
         }
 
-    def clean_password(self):
-        password = self.cleaned_data["password"]
-        validate_password(password)
-        return password
+    def clean_first_name(self):
+        value = self.cleaned_data.get("first_name", "").strip()
+        if not value:
+            raise forms.ValidationError("First name is required.")
+        return value
+
+    def clean_last_name(self):
+        value = self.cleaned_data.get("last_name", "").strip()
+        if not value:
+            raise forms.ValidationError("Last name is required.")
+        return value
 
     def save(self, commit=True):
-        password = self.cleaned_data.pop("password")
         user = super().save(commit=False)
+        user.username = generate_pending_username()
         user.is_staff = False
         user.is_superuser = False
-        user.force_password_change = True
-        user.set_password(password)
+        user.force_password_change = False
+        user.set_unusable_password()
         if commit:
             user.save()
         return user
 
 
 class DashboardManagedUserUpdateForm(forms.ModelForm):
-    temporary_password = forms.CharField(
-        required=False,
-        widget=forms.PasswordInput,
-        help_text="Optional temporary password reset. If set, the user must change it on next sign-in.",
-        strip=False,
-    )
-
     role = forms.ChoiceField(choices=MANAGED_ROLE_CHOICES)
+    email = forms.EmailField(required=True)
+    phone = forms.CharField(required=True, max_length=30)
 
     class Meta:
         model = User
@@ -71,24 +67,27 @@ class DashboardManagedUserUpdateForm(forms.ModelForm):
             "phone",
             "role",
             "is_active",
-            "force_password_change",
         ]
         widgets = {
             "email": forms.EmailInput(),
         }
 
-    def clean_temporary_password(self):
-        password = self.cleaned_data.get("temporary_password")
-        if password:
-            validate_password(password, self.instance)
-        return password
+    def clean_first_name(self):
+        value = self.cleaned_data.get("first_name", "").strip()
+        if not value:
+            raise forms.ValidationError("First name is required.")
+        return value
+
+    def clean_last_name(self):
+        value = self.cleaned_data.get("last_name", "").strip()
+        if not value:
+            raise forms.ValidationError("Last name is required.")
+        return value
 
     def save(self, commit=True):
-        password = self.cleaned_data.get("temporary_password", "")
         user = super().save(commit=False)
-        if password:
-            user.set_password(password)
-            user.force_password_change = True
+        if not user.is_superuser:
+            user.is_staff = False
         if commit:
             user.save()
         return user
