@@ -47,7 +47,6 @@ class AccountSetupToken(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["token_hash"]),
             models.Index(fields=["user", "used_at", "expires_at"]),
         ]
 
