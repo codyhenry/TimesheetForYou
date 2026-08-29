@@ -95,5 +95,4 @@ def send_setup_email_for_identifier(identifier):
     if user is None or user.has_usable_password():
         return False
 
-    send_account_setup_email(user)
-    return True
+    return send_account_setup_email(user) is not None
