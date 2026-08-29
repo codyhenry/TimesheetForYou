@@ -55,8 +55,8 @@ class DashboardManagedUserCreateForm(forms.ModelForm):
 
 class DashboardManagedUserUpdateForm(forms.ModelForm):
     role = forms.ChoiceField(choices=MANAGED_ROLE_CHOICES)
-    email = forms.EmailField(required=True)
-    phone = forms.CharField(required=True, max_length=30)
+    email = forms.EmailField(required=False)
+    phone = forms.CharField(required=False, max_length=30)
 
     class Meta:
         model = User
