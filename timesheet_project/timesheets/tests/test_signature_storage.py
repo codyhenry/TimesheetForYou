@@ -91,7 +91,8 @@ class ParentSignatureStorageTests(APITestCase):
         self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(signature.image.storage.exists(old_image_name))
 
-        second_response = self.post_api_signature("white")
+        with self.captureOnCommitCallbacks(execute=True):
+            second_response = self.post_api_signature("white")
         signature.refresh_from_db()
 
         self.assertEqual(second_response.status_code, status.HTTP_201_CREATED)
@@ -125,14 +126,15 @@ class ParentSignatureStorageTests(APITestCase):
         self.assertTrue(signature.image.storage.exists(old_image_name))
 
         self.login_admin()
-        response = self.client.post(
-            reverse("admin:timesheets_parentsignature_change", args=[signature.pk]),
-            {
-                "image": self.uploaded_signature("white"),
-                "approved_snapshot": "{}",
-                "_save": "Save",
-            },
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("admin:timesheets_parentsignature_change", args=[signature.pk]),
+                {
+                    "image": self.uploaded_signature("white"),
+                    "approved_snapshot": "{}",
+                    "_save": "Save",
+                },
+            )
         signature.refresh_from_db()
 
         self.assertEqual(response.status_code, 302)
