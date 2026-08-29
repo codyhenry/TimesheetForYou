@@ -233,6 +233,38 @@ class DashboardUserManagementRegressionTests(TestCase):
         self.assertTrue(staff_admin.can_access_django_admin)
         self.assertEqual(staff_admin.email, "staff@example.com")
 
+    def test_user_update_allows_legacy_blank_email_and_phone(self):
+        legacy_user = User.objects.create_user(
+            username="legacy-nanny",
+            password="StrongTestPass123!",
+            role=User.Role.NANNY,
+            first_name="Legacy",
+            last_name="Nanny",
+            email="",
+            phone="",
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("dashboard-users"),
+            {
+                "action": "update",
+                "user_id": str(legacy_user.id),
+                f"user-{legacy_user.id}-first_name": "Legacy",
+                f"user-{legacy_user.id}-last_name": "Nanny",
+                f"user-{legacy_user.id}-email": "",
+                f"user-{legacy_user.id}-phone": "",
+                f"user-{legacy_user.id}-role": User.Role.NANNY,
+                f"user-{legacy_user.id}-is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        legacy_user.refresh_from_db()
+        self.assertEqual(legacy_user.email, "")
+        self.assertEqual(legacy_user.phone, "")
+        self.assertTrue(legacy_user.is_active)
+
     def test_creating_inactive_user_does_not_claim_setup_email_sent(self):
         self.client.force_login(self.admin)
 
