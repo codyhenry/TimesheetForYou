@@ -83,11 +83,3 @@ class DashboardManagedUserUpdateForm(forms.ModelForm):
         if not value:
             raise forms.ValidationError("Last name is required.")
         return value
-
-    def save(self, commit=True):
-        user = super().save(commit=False)
-        if not user.is_superuser:
-            user.is_staff = False
-        if commit:
-            user.save()
-        return user
