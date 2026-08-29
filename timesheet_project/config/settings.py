@@ -205,6 +205,13 @@ DEFAULT_EMAIL_BACKEND = (
 )
 EMAIL_BACKEND = config("EMAIL_BACKEND", default=DEFAULT_EMAIL_BACKEND)
 EMAIL_HOST = config("EMAIL_HOST", default="")
+if (
+    not DEBUG
+    and not IS_TESTING
+    and EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend"
+    and not EMAIL_HOST
+):
+    raise ValueError("EMAIL_HOST must be set when DEBUG is False and EMAIL_BACKEND uses SMTP.")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
