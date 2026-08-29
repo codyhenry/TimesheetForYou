@@ -11,6 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
+from accounts.services import send_account_setup_email
 from dashboard.forms import (
     MANAGED_ROLE_CHOICES,
     MANAGED_ROLES,
@@ -262,11 +263,6 @@ def _normalize_update_post_data(request, user):
     prefix = _get_update_form_prefix(user)
     data = request.POST.copy()
 
-    prefixed_password = f"{prefix}-password"
-    prefixed_temporary_password = f"{prefix}-temporary_password"
-    if prefixed_password in request.POST and prefixed_temporary_password not in request.POST:
-        data[prefixed_temporary_password] = request.POST.get(prefixed_password, "")
-
     if f"{prefix}-role" in request.POST:
         return data
 
@@ -280,12 +276,8 @@ def _normalize_update_post_data(request, user):
         if field_name in request.POST:
             data[f"{prefix}-{field_name}"] = request.POST.get(field_name, "")
 
-    if "password" in request.POST:
-        data[prefixed_temporary_password] = request.POST.get("password", "")
-
-    for checkbox_name in ["is_active", "force_password_change"]:
-        if checkbox_name in request.POST:
-            data[f"{prefix}-{checkbox_name}"] = request.POST.get(checkbox_name)
+    if "is_active" in request.POST:
+        data[f"{prefix}-is_active"] = request.POST.get("is_active")
 
     return data
 
@@ -353,7 +345,8 @@ def user_management(request):
             form = DashboardManagedUserCreateForm(request.POST)
             if form.is_valid():
                 user = form.save()
-                messages.success(request, f"Created {user.get_full_name() or user.username}.")
+                send_account_setup_email(user)
+                messages.success(request, f"Created {user.get_full_name() or user.email} and sent setup instructions.")
                 return redirect("dashboard-users")
             return _render_user_management(request, create_form=form)
 
