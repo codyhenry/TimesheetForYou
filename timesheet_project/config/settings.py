@@ -198,7 +198,12 @@ USE_SNS = config("USE_SNS", default=False, cast=bool)
 AWS_SNS_REGION_NAME = config("AWS_SNS_REGION_NAME", default=config("AWS_REGION", default=""))
 SNS_SENDER_ID = config("SNS_SENDER_ID", default="")
 
-EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+DEFAULT_EMAIL_BACKEND = (
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG or IS_TESTING
+    else "django.core.mail.backends.smtp.EmailBackend"
+)
+EMAIL_BACKEND = config("EMAIL_BACKEND", default=DEFAULT_EMAIL_BACKEND)
 EMAIL_HOST = config("EMAIL_HOST", default="")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
