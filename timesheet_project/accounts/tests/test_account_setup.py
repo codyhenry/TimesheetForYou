@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.core import mail
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -158,7 +160,7 @@ class AccountSetupFlowTests(TestCase):
         AccountSetupToken.objects.create(
             user=user,
             token_hash=hash_setup_token(raw_token),
-            expires_at=timezone.now() - timezone.timedelta(days=1),
+            expires_at=timezone.now() - timedelta(days=1),
         )
         self.client.force_authenticate(user=None)
 
