@@ -71,6 +71,23 @@ class AccountSetupFlowTests(TestCase):
         self.assertFalse(user.check_password("AdminChosenPassword123!"))
         self.assertFalse(user.force_password_change)
 
+    def test_dashboard_user_create_requires_role(self):
+        response = self.client.post(
+            reverse("admin-dashboard-user-list"),
+            {
+                "first_name": "Office",
+                "last_name": "User",
+                "email": "office-no-role@example.com",
+                "phone": "555-0106",
+                "is_active": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("role", response.data)
+        self.assertFalse(User.objects.filter(email="office-no-role@example.com").exists())
+
     def test_setup_request_uses_generic_response_and_sends_email_for_pending_user(self):
         user = User.objects.create_user(
             username="pending-user",
@@ -113,6 +130,26 @@ class AccountSetupFlowTests(TestCase):
             "If an account is eligible for setup, instructions have been sent.",
         )
         self.assertEqual(len(mail.outbox), 0)
+
+    def test_setup_validate_uses_validated_token_snapshot(self):
+        user = User.objects.create_user(
+            username="pending-user",
+            first_name="Pending",
+            last_name="User",
+            email="pending@example.com",
+            phone="555-0107",
+            role=User.Role.NANNY,
+        )
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+        raw_token, setup_token = create_account_setup_token(user)
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(reverse("account-setup-validate"), {"token": raw_token})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["email"], user.email)
+        self.assertTrue(AccountSetupToken.objects.filter(pk=setup_token.pk, used_at__isnull=True).exists())
 
     def test_user_can_complete_setup_with_valid_token(self):
         user = User.objects.create_user(
