@@ -12,7 +12,7 @@
         {% for user in users %}
             <tr>
                 <td>
-                    <strong>{{ user.get_full_name|default:user.email }}</strong><br>
+                    <strong>{% firstof user.get_full_name user.email user.username %}</strong><br>
                     <span class="muted">{{ user.username }}</span><br>
                     {% if user.email %}<span class="muted">{{ user.email }}</span><br>{% endif %}
                     {% if user.phone %}<span class="muted">{{ user.phone }}</span>{% endif %}
@@ -29,6 +29,8 @@
                 <td>
                     {% if user.account_setup_required %}
                         <span class="status-pending">Pending</span>
+                    {% elif user.force_password_change %}
+                        <span class="status-pending">Password change required</span>
                     {% else %}
                         Complete
                     {% endif %}
