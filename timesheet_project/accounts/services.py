@@ -58,7 +58,7 @@ def build_account_setup_url(raw_token):
 
 
 def send_account_setup_email(user):
-    if not user.email:
+    if not user.is_active or user.has_usable_password() or not user.email:
         return None
 
     raw_token, token = create_account_setup_token(user)
