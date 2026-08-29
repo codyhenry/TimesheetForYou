@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 
 from django.contrib import messages
@@ -25,6 +26,8 @@ from timesheets.services import (
     get_timesheet_entry_prefetch,
     get_timesheet_week_range,
 )
+
+logger = logging.getLogger(__name__)
 
 
 dashboard_user_required = user_passes_test(
@@ -345,14 +348,31 @@ def user_management(request):
             form = DashboardManagedUserCreateForm(request.POST)
             if form.is_valid():
                 user = form.save()
-                setup_token = send_account_setup_email(user)
-                display_name = user.get_full_name() or user.email
+                setup_token = None
+                email_failed = False
+                if user.is_active:
+                    try:
+                        setup_token = send_account_setup_email(user)
+                    except Exception:
+                        email_failed = True
+                        logger.exception("Failed to send account setup email for user %s", user.pk)
+                display_name = user.get_full_name() or user.email or user.username
                 if setup_token:
                     messages.success(request, f"Created {display_name} and sent setup instructions.")
-                else:
+                elif email_failed:
+                    messages.warning(
+                        request,
+                        f"Created {display_name}, but setup instructions could not be sent. Check email configuration and resend the setup invite.",
+                    )
+                elif not user.is_active:
                     messages.success(
                         request,
                         f"Created {display_name}. Setup instructions were not sent because the account is inactive.",
+                    )
+                else:
+                    messages.warning(
+                        request,
+                        f"Created {display_name}, but setup instructions were not sent because the account has no email address.",
                     )
                 return redirect("dashboard-users")
             return _render_user_management(request, create_form=form)
