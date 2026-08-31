@@ -1,7 +1,7 @@
 from rest_framework.permissions import BasePermission
 
 
-TEMPORARY_PASSWORD_MESSAGE = "You must change your temporary password before continuing."
+PASSWORD_SETUP_MESSAGE = "You must complete password setup before continuing."
 
 
 def is_password_setup_required(user):
@@ -10,7 +10,7 @@ def is_password_setup_required(user):
 
 def deny_if_password_setup_required(permission, user):
     if is_password_setup_required(user):
-        permission.message = TEMPORARY_PASSWORD_MESSAGE
+        permission.message = PASSWORD_SETUP_MESSAGE
         return True
     return False
 

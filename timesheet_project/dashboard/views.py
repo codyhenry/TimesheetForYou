@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 
 from django.contrib import messages
@@ -11,6 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
+from accounts.services import send_account_setup_email
 from dashboard.forms import (
     MANAGED_ROLE_CHOICES,
     MANAGED_ROLES,
@@ -24,6 +26,8 @@ from timesheets.services import (
     get_timesheet_entry_prefetch,
     get_timesheet_week_range,
 )
+
+logger = logging.getLogger(__name__)
 
 
 dashboard_user_required = user_passes_test(
@@ -262,11 +266,6 @@ def _normalize_update_post_data(request, user):
     prefix = _get_update_form_prefix(user)
     data = request.POST.copy()
 
-    prefixed_password = f"{prefix}-password"
-    prefixed_temporary_password = f"{prefix}-temporary_password"
-    if prefixed_password in request.POST and prefixed_temporary_password not in request.POST:
-        data[prefixed_temporary_password] = request.POST.get(prefixed_password, "")
-
     if f"{prefix}-role" in request.POST:
         return data
 
@@ -280,12 +279,8 @@ def _normalize_update_post_data(request, user):
         if field_name in request.POST:
             data[f"{prefix}-{field_name}"] = request.POST.get(field_name, "")
 
-    if "password" in request.POST:
-        data[prefixed_temporary_password] = request.POST.get("password", "")
-
-    for checkbox_name in ["is_active", "force_password_change"]:
-        if checkbox_name in request.POST:
-            data[f"{prefix}-{checkbox_name}"] = request.POST.get(checkbox_name)
+    if "is_active" in request.POST:
+        data[f"{prefix}-is_active"] = request.POST.get("is_active")
 
     return data
 
@@ -353,7 +348,32 @@ def user_management(request):
             form = DashboardManagedUserCreateForm(request.POST)
             if form.is_valid():
                 user = form.save()
-                messages.success(request, f"Created {user.get_full_name() or user.username}.")
+                setup_token = None
+                email_failed = False
+                if user.is_active:
+                    try:
+                        setup_token = send_account_setup_email(user)
+                    except Exception:
+                        email_failed = True
+                        logger.exception("Failed to send account setup email for user %s", user.pk)
+                display_name = user.get_full_name() or user.email or user.username
+                if setup_token:
+                    messages.success(request, f"Created {display_name} and sent setup instructions.")
+                elif email_failed:
+                    messages.warning(
+                        request,
+                        f"Created {display_name}, but setup instructions could not be sent. Check email configuration and resend the setup invite.",
+                    )
+                elif not user.is_active:
+                    messages.success(
+                        request,
+                        f"Created {display_name}. Setup instructions were not sent because the account is inactive.",
+                    )
+                else:
+                    messages.warning(
+                        request,
+                        f"Created {display_name}, but setup instructions were not sent because the account has no email address.",
+                    )
                 return redirect("dashboard-users")
             return _render_user_management(request, create_form=form)
 

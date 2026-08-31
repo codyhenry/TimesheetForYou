@@ -198,6 +198,30 @@ USE_SNS = config("USE_SNS", default=False, cast=bool)
 AWS_SNS_REGION_NAME = config("AWS_SNS_REGION_NAME", default=config("AWS_REGION", default=""))
 SNS_SENDER_ID = config("SNS_SENDER_ID", default="")
 
+DEFAULT_EMAIL_BACKEND = (
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG or IS_TESTING
+    else "django.core.mail.backends.smtp.EmailBackend"
+)
+EMAIL_BACKEND = config("EMAIL_BACKEND", default=DEFAULT_EMAIL_BACKEND)
+EMAIL_HOST = config("EMAIL_HOST", default="")
+if (
+    not DEBUG
+    and not IS_TESTING
+    and EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend"
+    and not EMAIL_HOST
+):
+    raise ValueError("EMAIL_HOST must be set when DEBUG is False and EMAIL_BACKEND uses SMTP.")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="no-reply@timesheetforyou.local")
+SITE_BASE_URL = config("SITE_BASE_URL", default="http://localhost:8000")
+ACCOUNT_SETUP_BASE_URL = config("ACCOUNT_SETUP_BASE_URL", default=SITE_BASE_URL)
+ACCOUNT_SETUP_TOKEN_DAYS = config("ACCOUNT_SETUP_TOKEN_DAYS", default=7, cast=int)
+ADMIN_NOTIFICATION_EMAIL = config("ADMIN_NOTIFICATION_EMAIL", default="")
+
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG and not IS_TESTING, cast=bool)
 SECURE_REDIRECT_EXEMPT = csv_config("SECURE_REDIRECT_EXEMPT", default="^/?healthz/$")
 SECURE_PROXY_SSL_HEADER = (

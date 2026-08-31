@@ -47,12 +47,13 @@ class SafeUserAdminTests(TestCase):
         self.assertContains(response, self.nanny.username)
         self.assertNotContains(response, self.developer_superuser.username)
 
-    def test_non_superuser_staff_change_form_hides_privilege_fields(self):
+    def test_non_superuser_staff_change_form_hides_privilege_and_password_fields(self):
         response = self.client.get(
             reverse("admin:accounts_user_change", args=[self.nanny.pk])
         )
 
         self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "id_password")
         self.assertNotContains(response, "id_is_staff")
         self.assertNotContains(response, "id_is_superuser")
         self.assertNotContains(response, "id_groups")
@@ -65,12 +66,13 @@ class SafeUserAdminTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    def test_non_superuser_staff_cannot_grant_staff_or_superuser_with_post(self):
+    def test_non_superuser_staff_cannot_grant_staff_superuser_or_force_password_change_with_post(self):
+        original_password = self.nanny.password
         response = self.client.post(
             reverse("admin:accounts_user_change", args=[self.nanny.pk]),
             {
                 "username": self.nanny.username,
-                "password": self.nanny.password,
+                "password": "malicious-password-change",
                 "first_name": self.nanny.first_name,
                 "last_name": self.nanny.last_name,
                 "email": self.nanny.email,
@@ -88,11 +90,12 @@ class SafeUserAdminTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.nanny.refresh_from_db()
+        self.assertEqual(self.nanny.password, original_password)
         self.assertFalse(self.nanny.is_staff)
         self.assertFalse(self.nanny.is_superuser)
         self.assertEqual(self.nanny.role, User.Role.ADMIN)
         self.assertEqual(self.nanny.phone, "555-0100")
-        self.assertTrue(self.nanny.force_password_change)
+        self.assertFalse(self.nanny.force_password_change)
 
     def test_non_superuser_staff_cannot_delete_users_in_admin(self):
         response = self.client.get(

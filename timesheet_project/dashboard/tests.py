@@ -3,6 +3,7 @@ from datetime import date, time, timedelta
 from pathlib import Path
 
 from django.conf import settings
+from django.core import mail
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -191,6 +192,10 @@ class DashboardFilterTests(TestCase):
         )
 
 
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    ACCOUNT_SETUP_BASE_URL="https://example.com",
+)
 class DashboardUserManagementRegressionTests(TestCase):
     def setUp(self):
         self.admin = User.objects.create_user(
@@ -227,6 +232,58 @@ class DashboardUserManagementRegressionTests(TestCase):
         self.assertTrue(staff_admin.is_staff)
         self.assertTrue(staff_admin.can_access_django_admin)
         self.assertEqual(staff_admin.email, "staff@example.com")
+
+    def test_user_update_allows_legacy_blank_email_and_phone(self):
+        legacy_user = User.objects.create_user(
+            username="legacy-nanny",
+            password="StrongTestPass123!",
+            role=User.Role.NANNY,
+            first_name="Legacy",
+            last_name="Nanny",
+            email="",
+            phone="",
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("dashboard-users"),
+            {
+                "action": "update",
+                "user_id": str(legacy_user.id),
+                f"user-{legacy_user.id}-first_name": "Legacy",
+                f"user-{legacy_user.id}-last_name": "Nanny",
+                f"user-{legacy_user.id}-email": "",
+                f"user-{legacy_user.id}-phone": "",
+                f"user-{legacy_user.id}-role": User.Role.NANNY,
+                f"user-{legacy_user.id}-is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        legacy_user.refresh_from_db()
+        self.assertEqual(legacy_user.email, "")
+        self.assertEqual(legacy_user.phone, "")
+        self.assertTrue(legacy_user.is_active)
+
+    def test_creating_inactive_user_does_not_claim_setup_email_sent(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("dashboard-users"),
+            {
+                "action": "create",
+                "first_name": "Inactive",
+                "last_name": "User",
+                "email": "inactive@example.com",
+                "phone": "555-0103",
+                "role": User.Role.NANNY,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Setup instructions were not sent because the account is inactive.")
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_invalid_update_user_id_returns_controlled_client_error(self):
         self.client.force_login(self.admin)

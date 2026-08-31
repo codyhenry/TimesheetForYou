@@ -6,7 +6,7 @@ from django.contrib.auth.models import Group
 from .models import User
 
 
-RESTRICTED_PERMISSION_FIELDS = {"is_staff", "is_superuser", "groups", "user_permissions"}
+RESTRICTED_PERMISSION_FIELDS = {"password", "is_staff", "is_superuser", "groups", "user_permissions"}
 
 
 def _filter_restricted_fields(fields):
@@ -29,11 +29,11 @@ def _filter_restricted_fields(fields):
 class UserAdmin(BaseUserAdmin):
     fieldsets = [
         *(BaseUserAdmin.fieldsets or []),
-        ("Profile", {"fields": ("role", "phone", "force_password_change")}),
+        ("Profile", {"fields": ("role", "phone")}),
     ]
     add_fieldsets = [
         *(BaseUserAdmin.add_fieldsets or []),
-        ("Profile", {"fields": ("role", "phone", "force_password_change")}),
+        ("Profile", {"fields": ("role", "phone")}),
     ]
     list_display = (
         "username",
@@ -43,9 +43,8 @@ class UserAdmin(BaseUserAdmin):
         "role",
         "is_active",
         "is_staff",
-        "force_password_change",
     )
-    list_filter = ("role", "is_staff", "is_superuser", "is_active", "force_password_change")
+    list_filter = ("role", "is_staff", "is_superuser", "is_active")
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
@@ -79,9 +78,11 @@ class UserAdmin(BaseUserAdmin):
         if not request.user.is_superuser:
             if change:
                 original = User.objects.get(pk=obj.pk)
+                obj.password = original.password
                 obj.is_staff = original.is_staff
                 obj.is_superuser = original.is_superuser
             else:
+                obj.set_unusable_password()
                 obj.is_staff = False
                 obj.is_superuser = False
         super().save_model(request, obj, form, change)
