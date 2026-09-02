@@ -7,7 +7,8 @@ from .services import GENERIC_SETUP_REQUEST_MESSAGE, get_available_account_setup
 
 
 def account_setup(request):
-    token = request.GET.get("token") or request.POST.get("token") or ""
+    token = request.POST.get("token") if request.method == "POST" else request.GET.get("token")
+    token = token or ""
     setup_token = get_available_account_setup_token(token)
     complete_form = None
     completed_user_name = request.session.pop("account_setup_completed_user_name", "")
