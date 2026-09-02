@@ -1,6 +1,6 @@
 # Email Configuration
 
-TimesheetForYou sends transactional email for account setup, user-owned password reset, and admin notifications when a timesheet is submitted.
+TimesheetForYou sends transactional email for account setup invites. Additional email flows, such as user-owned password reset and admin timesheet-submission notifications, are being developed in separate PRs and should be documented as production behavior only after those PRs merge.
 
 ## Required production settings
 
@@ -14,16 +14,14 @@ EMAIL_HOST_USER=replace-with-smtp-user
 EMAIL_HOST_PASSWORD=replace-with-smtp-password
 EMAIL_USE_TLS=True
 DEFAULT_FROM_EMAIL=no-reply@timesheet.example.com
-SITE_BASE_URL=https://timesheet.example.com
 ACCOUNT_SETUP_BASE_URL=https://timesheet.example.com
-ADMIN_NOTIFICATION_EMAIL=office@example.com
 ```
 
-`SITE_BASE_URL` is used to build absolute dashboard and password reset links. It should be the public HTTPS URL for the Django app.
+`ACCOUNT_SETUP_BASE_URL` controls account setup invite links. It should be the public HTTPS URL for the Django app or the public account setup page host.
 
-`ACCOUNT_SETUP_BASE_URL` controls account setup invite links. In most deployments it should match `SITE_BASE_URL`.
+`SITE_BASE_URL` can be set as the general public app URL and currently acts as the default value for `ACCOUNT_SETUP_BASE_URL` when `ACCOUNT_SETUP_BASE_URL` is not provided.
 
-`ADMIN_NOTIFICATION_EMAIL` receives timesheet submission notifications. Leave it blank only if admin notification emails should be disabled.
+`ADMIN_NOTIFICATION_EMAIL` is reserved for admin-facing email notifications. It is optional until the timesheet-submission notification feature is merged.
 
 ## Local development
 
@@ -44,11 +42,17 @@ ACCOUNT_SETUP_BASE_URL=http://localhost:8000
 2. The app creates the user with an unusable password.
 3. The app generates an expiring account setup token.
 4. The app emails the setup link to the user's email address.
-5. The user opens the link and chooses their username and password.
+5. The user opens the link and chooses their username and password through the account setup flow.
 
 Admins cannot set another user's password and cannot force a password reset.
 
-## Password reset flow
+## Planned email flows
+
+The following settings and behaviors are planned or implemented in separate unmerged PRs. Treat them as pending until their PRs are merged into `main`.
+
+### User-owned password reset
+
+Planned behavior:
 
 1. The user opens the password reset page.
 2. The user enters their account email.
@@ -58,7 +62,9 @@ Admins cannot set another user's password and cannot force a password reset.
 
 Pending setup users with unusable passwords should use the account setup flow, not password reset.
 
-## Timesheet submission notification flow
+### Timesheet submission notification
+
+Planned behavior:
 
 When a timesheet submission transaction commits successfully, the app emails `ADMIN_NOTIFICATION_EMAIL` with:
 
@@ -73,14 +79,13 @@ If `ADMIN_NOTIFICATION_EMAIL` is blank, the notification is skipped. If email de
 
 ## Deployment checklist
 
-Before promoting a production release that sends email:
+Before promoting a production release that sends account setup email:
 
 - Confirm `DEBUG=False`.
 - Confirm `EMAIL_HOST` is set.
 - Confirm SMTP credentials are valid.
 - Confirm `DEFAULT_FROM_EMAIL` uses an approved sender domain.
-- Confirm `SITE_BASE_URL` is the public HTTPS app URL.
 - Confirm `ACCOUNT_SETUP_BASE_URL` is the public HTTPS setup URL host.
-- Confirm `ADMIN_NOTIFICATION_EMAIL` is the intended office/admin inbox.
 - Create a test pending user and verify the setup link works from email.
-- Submit a test timesheet and verify the admin inbox receives the notification.
+
+After the password-reset and admin-notification PRs merge, also verify their end-to-end email flows and set `ADMIN_NOTIFICATION_EMAIL` to the intended office/admin inbox if timesheet-submission notifications should be enabled.
