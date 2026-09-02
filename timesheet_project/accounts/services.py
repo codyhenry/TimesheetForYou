@@ -53,7 +53,7 @@ def get_available_account_setup_token(raw_token):
 
 def build_account_setup_url(raw_token):
     base_url = settings.ACCOUNT_SETUP_BASE_URL.rstrip("/")
-    setup_path = reverse("account-setup-validate")
+    setup_path = reverse("account-setup-web")
     return f"{base_url}{setup_path}?token={raw_token}"
 
 
