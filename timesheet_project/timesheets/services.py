@@ -10,6 +10,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from .models import TimeEntry, TimesheetSubmission, TimesheetWeekLock, WeeklyTimesheet
+from .notifications import send_timesheet_submission_admin_email
 from .pdf import render_timesheet_pdf
 
 
@@ -404,5 +405,8 @@ def submit_timesheet(timesheet, submitted_by=None, force_late=False, late_submis
             "pdf_file",
             "updated_at",
         ]
+    )
+    transaction.on_commit(
+        lambda timesheet_id=timesheet.id: send_timesheet_submission_admin_email(timesheet_id)
     )
     return timesheet
