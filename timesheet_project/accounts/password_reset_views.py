@@ -1,6 +1,7 @@
 import logging
 
 from django.contrib import messages
+from django.http import QueryDict
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -30,7 +31,11 @@ def password_reset_confirm(request, uidb64, token):
     completed = False
 
     if request.method == "POST":
-        form = UserPasswordResetCompleteForm(request.POST)
+        form_data = QueryDict(mutable=True)
+        form_data.update(request.POST)
+        form_data["uidb64"] = uidb64
+        form_data["token"] = token
+        form = UserPasswordResetCompleteForm(form_data)
         if form.is_valid():
             form.save()
             completed = True
