@@ -28,7 +28,21 @@ export default function LoginScreen() {
   const { login } = useAuth();
 
   const openAccountSetup = async () => {
-    await Linking.openURL(`${API_BASE_URL.replace(/\/$/, "")}/account-setup/`);
+    const setupUrl = `${API_BASE_URL.replace(/\/$/, "")}/account-setup/`;
+    try {
+      const canOpen = await Linking.canOpenURL(setupUrl);
+      if (!canOpen) {
+        Alert.alert("Cannot Open Link", `Open this URL in your browser: ${setupUrl}`);
+        return;
+      }
+      await Linking.openURL(setupUrl);
+    } catch (error: any) {
+      console.error("Account setup link error:", error);
+      Alert.alert(
+        "Cannot Open Link",
+        `Open this URL in your browser: ${setupUrl}`,
+      );
+    }
   };
 
   const handleLogin = async () => {
