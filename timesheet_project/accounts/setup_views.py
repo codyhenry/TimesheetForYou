@@ -10,7 +10,7 @@ def account_setup(request):
     token = request.GET.get("token") or request.POST.get("token") or ""
     setup_token = get_available_account_setup_token(token)
     complete_form = None
-    completed_user = None
+    completed_user_name = request.session.pop("account_setup_completed_user_name", "")
 
     if request.method == "POST" and request.POST.get("action") == "request":
         request_form = AccountSetupRequestForm(request.POST)
@@ -25,6 +25,10 @@ def account_setup(request):
         complete_form = AccountSetupCompleteForm(request.POST)
         if complete_form.is_valid():
             completed_user = complete_form.save()
+            request.session["account_setup_completed_user_name"] = (
+                completed_user.get_full_name() or completed_user.username
+            )
+            return redirect(f"{reverse('account-setup-web')}?complete=1")
     elif token:
         complete_form = AccountSetupCompleteForm(initial={"token": token})
         if setup_token is None:
@@ -35,7 +39,7 @@ def account_setup(request):
         "accounts/account_setup.html",
         {
             "complete_form": complete_form,
-            "completed_user": completed_user,
+            "completed_user_name": completed_user_name,
             "request_form": request_form,
             "setup_token": setup_token,
         },
