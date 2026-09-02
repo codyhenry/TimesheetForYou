@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,7 @@ import {
   login as apiLogin,
   logout as apiLogout,
 } from "../src/api/auth";
+import { API_BASE_URL } from "../src/api/client";
 import { useAuth } from "../src/context/AuthContext";
 
 export default function LoginScreen() {
@@ -24,6 +26,10 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+
+  const openAccountSetup = async () => {
+    await Linking.openURL(`${API_BASE_URL.replace(/\/$/, "")}/account-setup/`);
+  };
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -115,6 +121,9 @@ export default function LoginScreen() {
               <Text style={styles.buttonText}>Log In</Text>
             )}
           </TouchableOpacity>
+          <TouchableOpacity onPress={openAccountSetup} style={styles.linkButton}>
+            <Text style={styles.linkText}>Set up a new account</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -146,4 +155,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  linkButton: { marginTop: 18, alignItems: "center" },
+  linkText: { color: "#2c3e50", fontSize: 15, fontWeight: "600" },
 });
