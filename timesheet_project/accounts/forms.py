@@ -23,22 +23,30 @@ class AccountSetupCompleteForm(forms.Form):
     password = forms.CharField(widget=forms.PasswordInput, strip=False)
     confirm_password = forms.CharField(widget=forms.PasswordInput, strip=False)
 
+    def _get_setup_token(self):
+        raw_token = self.data.get(self.add_prefix("token")) or self.data.get("token")
+        return get_available_account_setup_token(raw_token)
+
     def clean_username(self):
         username = self.cleaned_data["username"].strip()
         username_field = User._meta.get_field("username")
         for validator in username_field.validators:
             validator(username)
-        if User.objects.filter(username__iexact=username).exists():
+
+        matching_users = User.objects.filter(username__iexact=username)
+        setup_token = self._get_setup_token()
+        if setup_token is not None:
+            matching_users = matching_users.exclude(pk=setup_token.user_id)
+        if matching_users.exists():
             raise ValidationError("This username is already taken.")
         return username
 
     def clean(self):
         cleaned_data = super().clean()
-        raw_token = cleaned_data.get("token")
         password = cleaned_data.get("password")
         confirm_password = cleaned_data.get("confirm_password")
 
-        setup_token = get_available_account_setup_token(raw_token)
+        setup_token = self._get_setup_token()
         if setup_token is None:
             self.add_error("token", "Setup link is invalid or expired.")
             return cleaned_data
