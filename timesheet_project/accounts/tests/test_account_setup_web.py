@@ -11,9 +11,9 @@ from accounts.services import create_account_setup_token, send_account_setup_ema
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
 )
 class AccountSetupWebFlowTests(TestCase):
-    def create_pending_user(self):
+    def create_pending_user(self, username="pending-user"):
         user = User.objects.create_user(
-            username="pending-user",
+            username=username,
             first_name="Nina",
             last_name="Nanny",
             email="nina@example.com",
@@ -57,13 +57,39 @@ class AccountSetupWebFlowTests(TestCase):
                 "password": "StrongTestPass123!",
                 "confirm_password": "StrongTestPass123!",
             },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Account setup complete")
+        self.assertEqual(response.redirect_chain, [(f"{reverse('account-setup-web')}?complete=1", 302)])
+        user.refresh_from_db()
+        setup_token.refresh_from_db()
+        self.assertEqual(user.username, "nina-nanny")
+        self.assertTrue(user.check_password("StrongTestPass123!"))
+        self.assertIsNotNone(setup_token.used_at)
+
+    def test_setup_page_allows_user_to_keep_current_username(self):
+        user = self.create_pending_user(username="existing-nina")
+        raw_token, setup_token = create_account_setup_token(user)
+
+        response = self.client.post(
+            reverse("account-setup-web"),
+            {
+                "action": "complete",
+                "token": raw_token,
+                "username": "existing-nina",
+                "password": "StrongTestPass123!",
+                "confirm_password": "StrongTestPass123!",
+            },
+            follow=True,
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Account setup complete")
         user.refresh_from_db()
         setup_token.refresh_from_db()
-        self.assertEqual(user.username, "nina-nanny")
+        self.assertEqual(user.username, "existing-nina")
         self.assertTrue(user.check_password("StrongTestPass123!"))
         self.assertIsNotNone(setup_token.used_at)
 
