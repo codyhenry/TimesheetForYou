@@ -1,4 +1,12 @@
+import logging
+
 from django.conf import settings
+from django.core.mail import send_mail
+from django.urls import reverse
+
+from .models import WeeklyTimesheet
+
+logger = logging.getLogger(__name__)
 
 
 class NotificationConfigurationError(RuntimeError):
@@ -78,3 +86,67 @@ def send_sms_notification(phone_number, message, sns_client=None):
         "message_id": response.get("MessageId", ""),
         "reason": "",
     }
+
+
+def _format_short_date(value):
+    return f"{value.month}.{value.day}.{value.year % 100:02d}"
+
+
+def _format_week_range(timesheet):
+    return f"{_format_short_date(timesheet.week_start_date)}-{_format_short_date(timesheet.week_end_date)}"
+
+
+def _build_dashboard_url(timesheet):
+    base_url = settings.SITE_BASE_URL.rstrip("/")
+    return f"{base_url}{reverse('dashboard-detail', args=[timesheet.id])}"
+
+
+def send_timesheet_submission_admin_email(timesheet_id):
+    """Notify the configured admin email after a timesheet is submitted.
+
+    Returns True when an email is sent, False when notifications are disabled or
+    delivery fails. Delivery errors are logged but do not undo the submission.
+    """
+    recipient = getattr(settings, "ADMIN_NOTIFICATION_EMAIL", "")
+    if not recipient:
+        return False
+
+    timesheet = (
+        WeeklyTimesheet.objects.select_related("nanny", "submission")
+        .filter(pk=timesheet_id)
+        .first()
+    )
+    if timesheet is None or timesheet.submission is None:
+        return False
+
+    nanny_name = timesheet.nanny.get_full_name() or timesheet.nanny.username
+    week_range = _format_week_range(timesheet)
+    dashboard_url = _build_dashboard_url(timesheet)
+    late_status = "Yes" if timesheet.is_late_submission else "No"
+
+    subject = f"Timesheet submitted: {nanny_name}, {week_range}"
+    message = "\n".join(
+        [
+            f"{nanny_name} submitted a timesheet for {week_range}.",
+            "",
+            f"Status: {timesheet.get_status_display()}",
+            f"Total hours: {timesheet.submission.total_hours}",
+            f"Late: {late_status}",
+            "",
+            f"View it in the dashboard: {dashboard_url}",
+        ]
+    )
+
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception("Failed to send timesheet submission notification for timesheet %s", timesheet_id)
+        return False
+
+    return True
