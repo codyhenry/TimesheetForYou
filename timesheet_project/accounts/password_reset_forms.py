@@ -37,7 +37,7 @@ class UserPasswordResetCompleteForm(forms.Form):
         try:
             user_id = force_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(pk=user_id, is_active=True)
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        except Exception:
             user = None
 
         if user is None or not user.has_usable_password() or not default_token_generator.check_token(user, token):
