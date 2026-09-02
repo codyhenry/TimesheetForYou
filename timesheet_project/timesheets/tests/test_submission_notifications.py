@@ -1,8 +1,9 @@
-from datetime import date, time
+from datetime import date, datetime, time
 from unittest.mock import patch
 
 from django.core import mail
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from accounts.models import User
 from timesheets.models import TimeEntry, WeeklyTimesheet
@@ -41,8 +42,10 @@ class TimesheetSubmissionNotificationTests(TestCase):
         )
 
     def test_submission_sends_admin_email_after_commit(self):
-        with self.captureOnCommitCallbacks(execute=True):
-            submit_timesheet(self.timesheet)
+        submitted_before_deadline = timezone.make_aware(datetime(2026, 7, 18, 11, 0))
+        with patch("timesheets.services.timezone.now", return_value=submitted_before_deadline):
+            with self.captureOnCommitCallbacks(execute=True):
+                submit_timesheet(self.timesheet)
 
         self.assertEqual(len(mail.outbox), 1)
         message = mail.outbox[0]
