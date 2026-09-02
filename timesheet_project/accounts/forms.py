@@ -23,9 +23,17 @@ class AccountSetupCompleteForm(forms.Form):
     password = forms.CharField(widget=forms.PasswordInput, strip=False)
     confirm_password = forms.CharField(widget=forms.PasswordInput, strip=False)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._setup_token_resolved = False
+        self._setup_token = None
+
     def _get_setup_token(self):
-        raw_token = self.data.get(self.add_prefix("token")) or self.data.get("token")
-        return get_available_account_setup_token(raw_token)
+        if not self._setup_token_resolved:
+            raw_token = self.data.get(self.add_prefix("token")) or self.data.get("token")
+            self._setup_token = get_available_account_setup_token(raw_token)
+            self._setup_token_resolved = True
+        return self._setup_token
 
     def clean_username(self):
         username = self.cleaned_data["username"].strip()
