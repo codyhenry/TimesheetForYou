@@ -57,7 +57,7 @@
 </head>
 <body>
     <main class="card">
-        {% if completed_user %}
+        {% if completed_user_name %}
             <h1>Account setup complete</h1>
             <p class="message success">Your account is ready. You can now sign in with your username and password.</p>
         {% elif complete_form and setup_token %}
@@ -99,7 +99,7 @@
             {% endfor %}
         {% endif %}
 
-        {% if not completed_user %}
+        {% if not completed_user_name %}
             <div class="divider"></div>
             <h2>Request setup instructions</h2>
             <p class="muted">Use this if you do not have a setup link or your link expired.</p>
