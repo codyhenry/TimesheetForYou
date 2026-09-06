@@ -17,7 +17,7 @@ DEFAULT_FROM_EMAIL=no-reply@timesheet.example.com
 ACCOUNT_SETUP_BASE_URL=https://timesheet.example.com
 ```
 
-`ACCOUNT_SETUP_BASE_URL` controls account setup invite links. It should be the public HTTPS URL for the Django app or the public account setup page host.
+`ACCOUNT_SETUP_BASE_URL` controls account setup invite links. It is a base URL, not only a hostname: include the scheme, public host, and any path prefix where Django is mounted. The app appends the account setup path to this value when building invite links.
 
 `SITE_BASE_URL` can be set as the general public app URL and currently acts as the default value for `ACCOUNT_SETUP_BASE_URL` when `ACCOUNT_SETUP_BASE_URL` is not provided.
 
@@ -85,7 +85,7 @@ Before promoting a production release that sends account setup email:
 - Confirm `EMAIL_HOST` is set.
 - Confirm SMTP credentials are valid.
 - Confirm `DEFAULT_FROM_EMAIL` uses an approved sender domain.
-- Confirm `ACCOUNT_SETUP_BASE_URL` is the public HTTPS setup URL host.
+- Confirm `ACCOUNT_SETUP_BASE_URL` includes the public HTTPS scheme, host, and any Django path prefix.
 - Create a test pending user and verify the setup link works from email.
 
 After the password-reset and admin-notification PRs merge, also verify their end-to-end email flows and set `ADMIN_NOTIFICATION_EMAIL` to the intended office/admin inbox if timesheet-submission notifications should be enabled.
