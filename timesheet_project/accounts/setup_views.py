@@ -29,7 +29,7 @@ def account_setup(request):
             request.session["account_setup_completed_user_name"] = (
                 completed_user.get_full_name() or completed_user.username
             )
-            return redirect(f"{reverse('account-setup-web')}?complete=1")
+            return redirect(reverse("account-setup-web"))
     elif token:
         complete_form = AccountSetupCompleteForm(initial={"token": token})
         if setup_token is None:
