@@ -1,3 +1,5 @@
+import binascii
+
 from django import forms
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
@@ -37,7 +39,7 @@ class UserPasswordResetCompleteForm(forms.Form):
         try:
             user_id = force_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(pk=user_id, is_active=True)
-        except Exception:
+        except (TypeError, ValueError, OverflowError, UnicodeDecodeError, binascii.Error, User.DoesNotExist):
             user = None
 
         if user is None or not user.has_usable_password() or not default_token_generator.check_token(user, token):
