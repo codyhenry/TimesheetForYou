@@ -62,7 +62,7 @@ class AccountSetupWebFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Account setup complete")
-        self.assertEqual(response.redirect_chain, [(f"{reverse('account-setup-web')}?complete=1", 302)])
+        self.assertEqual(response.redirect_chain, [(reverse("account-setup-web"), 302)])
         user.refresh_from_db()
         setup_token.refresh_from_db()
         self.assertEqual(user.username, "nina-nanny")
