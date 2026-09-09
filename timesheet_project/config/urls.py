@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from accounts import password_reset_views
+from accounts import setup_views, password_reset_views
 from . import views
 
 handler404 = "config.views.custom_404"
@@ -12,6 +12,7 @@ handler404 = "config.views.custom_404"
 urlpatterns = [
     path("", views.root_redirect, name="root-redirect"),
     path("healthz/", views.healthz, name="healthz"),
+    path("account-setup/", setup_views.account_setup, name="account-setup-web"),
     path("password-reset/", password_reset_views.password_reset_request, name="password-reset-request-web"),
     path(
         "password-reset/<uidb64>/<token>/",
